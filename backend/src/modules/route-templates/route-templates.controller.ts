@@ -44,6 +44,12 @@ export class RouteTemplatesController {
     return this.routeTemplatesService.findByRoute(routeId);
   }
 
+  @Get('route/:routeId/combinations')
+  @ApiOperation({ summary: 'Generar todas las combinaciones posibles de una ruta' })
+  generateCombinations(@Param('routeId') routeId: string) {
+    return this.routeTemplatesService.generateCombinations(routeId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener plantilla por ID' })
   findOne(@Param('id') id: string) {
@@ -62,12 +68,6 @@ export class RouteTemplatesController {
   @ApiOperation({ summary: 'Eliminar plantilla' })
   remove(@Param('id') id: string) {
     return this.routeTemplatesService.remove(id);
-  }
-
-  @Get('route/:routeId/combinations')
-  @ApiOperation({ summary: 'Generar todas las combinaciones posibles de una ruta' })
-  generateCombinations(@Param('routeId') routeId: string) {
-    return this.routeTemplatesService.generateCombinations(routeId);
   }
 }
 
