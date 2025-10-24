@@ -36,6 +36,11 @@ export class CreateTripDto {
   @IsNotEmpty()
   route_id: string;
 
+  @ApiProperty({ description: 'ID de la plantilla de ruta', required: false })
+  @IsOptional()
+  @IsUUID()
+  route_template_id?: string;
+
   @ApiProperty({ description: 'ID de la empresa' })
   @IsUUID()
   @IsNotEmpty()

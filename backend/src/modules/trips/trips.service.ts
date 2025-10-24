@@ -24,67 +24,135 @@ export class TripsService {
 
     // Auto-generate trip segments based on route
     if (createTripDto.route_id) {
-      await this.generateTripSegments(trip.id, createTripDto.route_id, trip.capacity);
+      await this.generateTripSegments(
+        trip.id,
+        createTripDto.route_id,
+        createTripDto.route_template_id || null,
+        trip.capacity,
+        new Date(trip.departure_datetime),
+      );
     }
 
     return trip;
   }
 
-  async generateTripSegments(tripId: string, routeId: string, capacity: number) {
+  async generateTripSegments(
+    tripId: string,
+    routeId: string,
+    routeTemplateId: string | null,
+    capacity: number,
+    departureTime: Date,
+  ) {
     const supabase = this.supabaseService.getServiceClient();
 
-    // Fetch route information
+    // Obtener ruta
     const { data: route, error: routeError } = await supabase
       .from('routes')
-      .select('*, route_templates(*)')
+      .select('*')
       .eq('id', routeId)
       .single();
 
     if (routeError || !route) {
-      throw new Error('Route not found');
+      throw new NotFoundException('Route not found');
     }
 
-    // Fetch trip to get departure time
-    const { data: trip } = await supabase
-      .from('trips')
-      .select('*')
-      .eq('id', tripId)
-      .single();
+    // Obtener plantilla si existe
+    let template = null;
+    if (routeTemplateId) {
+      const { data } = await supabase
+        .from('route_templates')
+        .select('*')
+        .eq('id', routeTemplateId)
+        .single();
+      template = data;
+    }
 
-    const segments: CreateTripSegmentDto[] = [];
     const stops = [route.origin, ...(route.stops || []), route.destination];
+    const segments: any[] = [];
 
-    // Generate segments for each origin-destination combination
-    for (let i = 0; i < stops.length - 1; i++) {
+    let currentTime = new Date(departureTime);
+
+    // Generar combinaciones con cálculo de tiempos
+    for (let i = 0; i < stops.length; i++) {
+      const segmentDepartureTime = new Date(currentTime);
+
       for (let j = i + 1; j < stops.length; j++) {
         const isMainTrip = i === 0 && j === stops.length - 1;
-        
-        // Calculate price (simplified - should use route_template pricing)
-        const basePrice = 100;
-        const distance = j - i;
-        const price = basePrice * distance;
+        const combinationKey = `${i}-${j}`;
 
-        segments.push({
-          trip_id: tripId,
-          origin: stops[i],
-          destination: stops[j],
-          price: price,
-          available_seats: capacity,
-          is_main_trip: isMainTrip,
-          departure_time: trip.departure_datetime,
-          arrival_time: trip.arrival_datetime,
-        });
+        // Calcular tiempo de llegada usando plantilla
+        let arrivalTime = new Date(segmentDepartureTime);
+        if (template && template.time_configuration) {
+          const totalMinutes = this.calculateTotalMinutes(
+            template.time_configuration,
+            i,
+            j,
+          );
+          arrivalTime = new Date(
+            segmentDepartureTime.getTime() + totalMinutes * 60000,
+          );
+        }
+
+        // Obtener precio de plantilla o usar default
+        let price = 100 * (j - i); // Default
+        let enabled = true;
+
+        if (template && template.price_configuration[combinationKey]) {
+          const priceConfig = template.price_configuration[combinationKey];
+          price = priceConfig.price;
+          enabled = priceConfig.enabled;
+        }
+
+        // Solo crear segmentos habilitados
+        if (enabled) {
+          segments.push({
+            trip_id: tripId,
+            company_id: route.company_id,
+            origin: stops[i],
+            destination: stops[j],
+            price,
+            available_seats: capacity,
+            is_main_trip: isMainTrip,
+            departure_time: segmentDepartureTime.toISOString(),
+            arrival_time: arrivalTime.toISOString(),
+          });
+        }
+      }
+
+      // Actualizar tiempo para siguiente parada
+      if (i < stops.length - 1 && template && template.time_configuration) {
+        const nextKey = `${i}-${i + 1}`;
+        if (template.time_configuration[nextKey]) {
+          const config = template.time_configuration[nextKey];
+          const minutes = config.hours * 60 + config.minutes;
+          currentTime = new Date(currentTime.getTime() + minutes * 60000);
+        }
       }
     }
 
-    // Insert all segments
+    // Insertar segmentos
     const { error: segmentsError } = await supabase
       .from('trip_segments')
       .insert(segments);
 
     if (segmentsError) {
-      throw new Error(`Error creating trip segments: ${segmentsError.message}`);
+      throw new Error(`Error creating segments: ${segmentsError.message}`);
     }
+  }
+
+  private calculateTotalMinutes(
+    timeConfig: any,
+    start: number,
+    end: number,
+  ): number {
+    let total = 0;
+    for (let i = start; i < end; i++) {
+      const key = `${i}-${i + 1}`;
+      if (timeConfig[key]) {
+        total += timeConfig[key].hours * 60 + timeConfig[key].minutes;
+      }
+    }
+    return total;
   }
 
   async findAll(companyId: string, filters?: any) {
@@ -191,6 +259,106 @@ export class TripsService {
 
     if (error) {
       throw new Error(`Error fetching trip segments: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async publishMultipleTrips(publishData: {
+    route_id: string;
+    route_template_id?: string;
+    company_id: string;
+    capacity: number;
+    vehicle_id?: string;
+    driver_id?: string;
+    start_date: string;
+    end_date: string;
+    departure_time: string;
+    visibility: string;
+  }) {
+    const trips = [];
+    const startDate = new Date(publishData.start_date);
+    const endDate = new Date(publishData.end_date);
+    const [hours, minutes] = publishData.departure_time.split(':');
+
+    // Iterar por cada día en el rango
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const departureDateTime = new Date(currentDate);
+      departureDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+      // Crear viaje
+      const tripData: CreateTripDto = {
+        route_id: publishData.route_id,
+        route_template_id: publishData.route_template_id || undefined,
+        company_id: publishData.company_id,
+        capacity: publishData.capacity,
+        vehicle_id: publishData.vehicle_id,
+        driver_id: publishData.driver_id,
+        departure_datetime: departureDateTime.toISOString(),
+        visibility: publishData.visibility as any,
+      };
+
+      const trip = await this.create(tripData);
+      trips.push(trip);
+
+      // Incrementar día
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return trips;
+  }
+
+  async searchAvailableTrips(filters: {
+    company_id: string;
+    origin?: string;
+    destination?: string;
+    date_from: string;
+    date_to: string;
+    min_seats?: number;
+    main_trips_only?: boolean;
+  }) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    let query = supabase
+      .from('trip_segments')
+      .select(
+        `
+        *,
+        trip:trips(
+          id,
+          route_id,
+          vehicle_id,
+          driver_id,
+          departure_datetime,
+          visibility
+        )
+      `,
+      )
+      .eq('company_id', filters.company_id)
+      .gte('departure_time', filters.date_from)
+      .lte('departure_time', filters.date_to)
+      .gt('available_seats', filters.min_seats || 0);
+
+    // Por defecto solo main trips
+    if (filters.main_trips_only !== false) {
+      query = query.eq('is_main_trip', true);
+    }
+
+    // Búsqueda específica por origen/destino
+    if (filters.origin) {
+      query = query.eq('origin', filters.origin);
+    }
+    if (filters.destination) {
+      query = query.eq('destination', filters.destination);
+    }
+
+    query = query.order('departure_time', { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Search error: ${error.message}`);
     }
 
     return data;

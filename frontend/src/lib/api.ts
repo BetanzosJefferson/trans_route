@@ -130,12 +130,27 @@ class ApiClient {
 
   trips = {
     getAll: (companyId: string, filters?: any) => {
-      const params = new URLSearchParams({ company_id: companyId, ...filters })
-      return this.get(`/trips?${params}`)
+      const params = new URLSearchParams({ company_id: companyId })
+      if (filters) {
+        Object.keys(filters).forEach((key) => {
+          if (filters[key]) params.append(key, filters[key].toString())
+        })
+      }
+      return this.get(`/trips?${params.toString()}`)
+    },
+    search: (filters: any) => {
+      const params = new URLSearchParams()
+      Object.keys(filters).forEach((key) => {
+        if (filters[key] !== undefined && filters[key] !== null) {
+          params.append(key, filters[key].toString())
+        }
+      })
+      return this.get(`/trips/search?${params.toString()}`)
     },
     getOne: (id: string) => this.get(`/trips/${id}`),
     getSegments: (id: string) => this.get(`/trips/${id}/segments`),
     create: (data: any) => this.post('/trips', data),
+    publishMultiple: (data: any) => this.post('/trips/publish-multiple', data),
     update: (id: string, data: any) => this.patch(`/trips/${id}`, data),
     delete: (id: string) => this.delete(`/trips/${id}`),
   }

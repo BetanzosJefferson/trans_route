@@ -13,6 +13,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TripsService } from './trips.service';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { UpdateTripDto } from './dto/update-trip.dto';
+import { PublishMultipleTripsDto } from './dto/publish-multiple-trips.dto';
+import { SearchTripsDto } from './dto/search-trips.dto';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles } from '../../shared/decorators/roles.decorator';
@@ -32,10 +34,23 @@ export class TripsController {
     return this.tripsService.create(createTripDto);
   }
 
+  @Post('publish-multiple')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Publicar múltiples viajes en un rango de fechas' })
+  publishMultiple(@Body() dto: PublishMultipleTripsDto) {
+    return this.tripsService.publishMultipleTrips(dto);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Obtener todos los viajes' })
   findAll(@Query('company_id') companyId: string, @Query() filters: any) {
     return this.tripsService.findAll(companyId, filters);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar viajes disponibles (optimizado)' })
+  search(@Query() filters: SearchTripsDto) {
+    return this.tripsService.searchAvailableTrips(filters);
   }
 
   @Get(':id')
