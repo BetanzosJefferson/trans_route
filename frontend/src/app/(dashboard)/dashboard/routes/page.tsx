@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, MapPin, Navigation, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, MapPin, Navigation, Building2, FileText, Sparkles } from 'lucide-react'
 
 // Helper function to parse location string
 function parseLocation(value: string) {
@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { api } from '@/lib/api'
 import { RouteFormDialog } from '@/components/routes/route-form-dialog'
+import { TemplateFormDialog } from '@/components/route-templates/template-form-dialog'
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 
 interface Route {
   id: string
@@ -55,6 +62,11 @@ export default function RoutesPage() {
   const [editingRoute, setEditingRoute] = useState<Route | undefined>(undefined)
   const [deletingRoute, setDeletingRoute] = useState<Route | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  
+  // Template states
+  const [templates, setTemplates] = useState<Record<string, any[]>>({})
+  const [isTemplateFormOpen, setIsTemplateFormOpen] = useState(false)
+  const [selectedRouteForTemplate, setSelectedRouteForTemplate] = useState<Route | null>(null)
 
   useEffect(() => {
     loadUserAndRoutes()
@@ -88,10 +100,37 @@ export default function RoutesPage() {
     try {
       const data = await api.routes.getAll(companyId)
       setRoutes(data || [])
+      
+      // Load templates for each route
+      await loadAllTemplates(data || [])
     } catch (error: any) {
       console.error('Error loading routes:', error)
       throw error
     }
+  }
+
+  const loadAllTemplates = async (routesList: Route[]) => {
+    try {
+      const templatesMap: Record<string, any[]> = {}
+      
+      for (const route of routesList) {
+        const routeTemplates = await api.routeTemplates.getByRoute(route.id)
+        templatesMap[route.id] = routeTemplates || []
+      }
+      
+      setTemplates(templatesMap)
+    } catch (error: any) {
+      console.error('Error loading templates:', error)
+    }
+  }
+
+  const handleCreateTemplate = (route: Route) => {
+    setSelectedRouteForTemplate(route)
+    setIsTemplateFormOpen(true)
+  }
+
+  const handleTemplateSuccess = async () => {
+    await loadRoutes(companyId)
   }
 
   const handleCreateRoute = () => {
@@ -276,6 +315,56 @@ export default function RoutesPage() {
                         Eliminar
                       </Button>
                     </div>
+
+                    {/* Templates Section */}
+                    <div className="pt-3 border-t mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                          <FileText className="h-3 w-3" />
+                          Plantillas ({templates[route.id]?.length || 0})
+                        </h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleCreateTemplate(route)}
+                        >
+                          <Plus className="mr-1 h-3 w-3" />
+                          Nueva
+                        </Button>
+                      </div>
+
+                      {templates[route.id] && templates[route.id].length > 0 ? (
+                        <Accordion type="single" collapsible className="w-full">
+                          {templates[route.id].map((template: any, idx: number) => (
+                            <AccordionItem key={template.id} value={`template-${idx}`} className="border-none">
+                              <AccordionTrigger className="py-2 text-xs hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="h-3 w-3 text-primary" />
+                                  <span className="font-medium">{template.name}</span>
+                                  <Badge variant={template.is_active ? 'default' : 'secondary'} className="text-[10px] h-4">
+                                    {template.is_active ? 'Activa' : 'Inactiva'}
+                                  </Badge>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="text-xs text-muted-foreground pb-2">
+                                <div className="space-y-1 pl-5">
+                                  <p>• {Object.keys(template.time_configuration || {}).length} tiempos configurados</p>
+                                  <p>• {Object.values(template.price_configuration || {}).filter((c: any) => c.enabled).length} combinaciones habilitadas</p>
+                                  <p className="text-[10px] mt-2">
+                                    Creado: {new Date(template.created_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          No hay plantillas aún
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -291,6 +380,16 @@ export default function RoutesPage() {
         companyId={companyId}
         route={editingRoute}
       />
+
+      {selectedRouteForTemplate && (
+        <TemplateFormDialog
+          open={isTemplateFormOpen}
+          onOpenChange={setIsTemplateFormOpen}
+          onSuccess={handleTemplateSuccess}
+          route={selectedRouteForTemplate}
+          companyId={companyId}
+        />
+      )}
 
       <Dialog open={!!deletingRoute} onOpenChange={() => setDeletingRoute(null)}>
         <DialogContent>

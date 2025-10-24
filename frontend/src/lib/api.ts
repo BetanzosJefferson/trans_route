@@ -33,9 +33,9 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`
     const token = this.getToken()
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     }
 
     if (token) {
@@ -194,6 +194,16 @@ class ApiClient {
     getAll: () => this.get('/invitations'),
     validate: (token: string) => this.get(`/invitations/validate/${token}`),
     delete: (id: string) => this.delete(`/invitations/${id}`),
+  }
+
+  routeTemplates = {
+    getAll: (companyId: string) => this.get(`/route-templates?company_id=${companyId}`),
+    getByRoute: (routeId: string) => this.get(`/route-templates/by-route/${routeId}`),
+    getOne: (id: string) => this.get(`/route-templates/${id}`),
+    create: (data: any) => this.post('/route-templates', data),
+    update: (id: string, data: any) => this.patch(`/route-templates/${id}`, data),
+    delete: (id: string) => this.delete(`/route-templates/${id}`),
+    getCombinations: (routeId: string) => this.get(`/route-templates/route/${routeId}/combinations`),
   }
 
   async registerByInvitation(data: any) {
