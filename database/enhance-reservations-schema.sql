@@ -4,163 +4,7 @@
 -- ========================================
 
 -- ========================================
--- PARTE 1: INTEGRIDAD FINANCIERA (Anti-Fraude)
--- ========================================
-
--- 1. Función para validar coherencia payment_status <-> transactions
-CREATE OR REPLACE FUNCTION validate_payment_integrity()
-RETURNS TRIGGER AS $$
-DECLARE
-  transaction_count INT;
-  total_paid DECIMAL(10,2);
-BEGIN
-  -- Solo validar si NO es 'pending' o 'cancelled'
-  IF NEW.payment_status IN ('paid', 'partial') THEN
-    -- Contar transacciones asociadas
-    SELECT COUNT(*), COALESCE(SUM(amount), 0)
-    INTO transaction_count, total_paid
-    FROM transactions
-    WHERE source_type = 'reservation'
-      AND source_id = NEW.id
-      AND type IN ('ticket', 'ticket_deposit');
-    
-    -- VALIDACIÓN CRÍTICA: Debe haber al menos 1 transacción
-    IF transaction_count = 0 THEN
-      RAISE EXCEPTION 'FRAUDE DETECTADO: Reserva % con payment_status=% pero SIN transacciones', 
-        NEW.id, NEW.payment_status;
-    END IF;
-    
-    -- Validar que amount_paid coincida con transacciones
-    IF NEW.payment_status = 'paid' AND total_paid < NEW.total_amount THEN
-      RAISE EXCEPTION 'INCONSISTENCIA: Reserva % marcada como "paid" pero solo tiene $% en transacciones (debe tener $%)',
-        NEW.id, total_paid, NEW.total_amount;
-    END IF;
-    
-    IF NEW.payment_status = 'partial' AND total_paid != NEW.amount_paid THEN
-      RAISE EXCEPTION 'INCONSISTENCIA: Reserva % tiene amount_paid=$% pero transacciones suman $%',
-        NEW.id, NEW.amount_paid, total_paid;
-    END IF;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger para validar DESPUÉS de UPDATE
--- IMPORTANTE: Este trigger se ejecuta cuando se intenta CONFIRMAR el pago
-CREATE TRIGGER trg_validate_payment_integrity
-BEFORE UPDATE OF payment_status ON reservations
-FOR EACH ROW
-WHEN (NEW.payment_status != OLD.payment_status)
-EXECUTE FUNCTION validate_payment_integrity();
-
--- 2. Prevenir eliminación de transactions si hay reservas activas
-CREATE OR REPLACE FUNCTION prevent_transaction_deletion()
-RETURNS TRIGGER AS $$
-DECLARE
-  reservation_status TEXT;
-  package_status TEXT;
-BEGIN
-  IF OLD.source_type = 'reservation' THEN
-    SELECT status INTO reservation_status
-    FROM reservations
-    WHERE id = OLD.source_id;
-    
-    IF reservation_status IN ('confirmed', 'modified') THEN
-      RAISE EXCEPTION 'NO SE PUEDE ELIMINAR: Transacción % está asociada a reserva activa %',
-        OLD.id, OLD.source_id;
-    END IF;
-  ELSIF OLD.source_type = 'package' THEN
-    SELECT status INTO package_status
-    FROM packages
-    WHERE id = OLD.source_id;
-    
-    IF package_status IN ('pending', 'in_transit') THEN
-      RAISE EXCEPTION 'NO SE PUEDE ELIMINAR: Transacción % está asociada a paquete activo %',
-        OLD.id, OLD.source_id;
-    END IF;
-  END IF;
-  
-  RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_prevent_transaction_deletion
-BEFORE DELETE ON transactions
-FOR EACH ROW
-EXECUTE FUNCTION prevent_transaction_deletion();
-
--- 3. Vista de Auditoría para detectar huérfanos
-CREATE OR REPLACE VIEW v_orphaned_reservations AS
-SELECT 
-  r.id,
-  r.company_id,
-  r.payment_status,
-  r.total_amount,
-  r.amount_paid,
-  r.created_at,
-  r.created_by_user_id,
-  COUNT(t.id) as transaction_count,
-  COALESCE(SUM(t.amount), 0) as total_in_transactions,
-  'HUÉRFANA: Sin transacciones' as issue_type
-FROM reservations r
-LEFT JOIN transactions t ON t.source_type = 'reservation' 
-  AND t.source_id = r.id
-  AND t.type IN ('ticket', 'ticket_deposit')
-WHERE r.payment_status IN ('paid', 'partial')
-  AND r.deleted_at IS NULL
-GROUP BY r.id, r.company_id, r.payment_status, r.total_amount, r.amount_paid, r.created_at, r.created_by_user_id
-HAVING COUNT(t.id) = 0;
-
--- Vista para detectar descuadres
-CREATE OR REPLACE VIEW v_mismatched_payments AS
-SELECT 
-  r.id,
-  r.company_id,
-  r.payment_status,
-  r.total_amount,
-  r.amount_paid,
-  COALESCE(SUM(t.amount), 0) as total_in_transactions,
-  r.total_amount - COALESCE(SUM(t.amount), 0) as difference,
-  'DESCUADRE: Montos no coinciden' as issue_type
-FROM reservations r
-LEFT JOIN transactions t ON t.source_type = 'reservation' 
-  AND t.source_id = r.id
-  AND t.type IN ('ticket', 'ticket_deposit', 'refund')
-WHERE r.payment_status IN ('paid', 'partial')
-  AND r.deleted_at IS NULL
-GROUP BY r.id, r.total_amount, r.amount_paid, r.payment_status, r.company_id
-HAVING 
-  (r.payment_status = 'paid' AND COALESCE(SUM(t.amount), 0) < r.total_amount) OR
-  (r.payment_status = 'partial' AND COALESCE(SUM(t.amount), 0) != r.amount_paid);
-
--- 4. Función para reporte diario de integridad
-CREATE OR REPLACE FUNCTION check_financial_integrity()
-RETURNS TABLE(
-  issue_type TEXT,
-  count BIGINT,
-  total_amount DECIMAL(10,2)
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    'Reservas Huérfanas'::TEXT as issue_type,
-    COUNT(*)::BIGINT,
-    COALESCE(SUM(v.total_amount), 0)::DECIMAL(10,2)
-  FROM v_orphaned_reservations v
-  
-  UNION ALL
-  
-  SELECT 
-    'Pagos Descuadrados'::TEXT as issue_type,
-    COUNT(*)::BIGINT,
-    COALESCE(SUM(ABS(v.difference)), 0)::DECIMAL(10,2)
-  FROM v_mismatched_payments v;
-END;
-$$ LANGUAGE plpgsql;
-
--- ========================================
--- PARTE 2: AMPLIACIÓN DE ENUMs
+-- PARTE 1: AMPLIAR ENUMs (PRIMERO)
 -- ========================================
 
 -- Ampliar estados de reserva (si no existen)
@@ -208,7 +52,7 @@ BEGIN
 END $$;
 
 -- ========================================
--- PARTE 3: NUEVOS CAMPOS EN RESERVATIONS
+-- PARTE 2: AGREGAR CAMPOS A RESERVATIONS (SEGUNDO)
 -- ========================================
 
 -- Agregar campos para gestión de pagos (solo si no existen)
@@ -264,7 +108,7 @@ BEGIN
 END $$;
 
 -- ========================================
--- PARTE 4: TABLA DE HISTORIAL DE MODIFICACIONES
+-- PARTE 3: TABLA DE HISTORIAL (TERCERO)
 -- ========================================
 
 CREATE TABLE IF NOT EXISTS reservation_modifications (
@@ -291,10 +135,80 @@ BEGIN
 END $$;
 
 -- ========================================
--- PARTE 5: TRIGGER DE DISPONIBILIDAD POR TRAMO
+-- PARTE 4: FUNCIONES DE VALIDACIÓN (CUARTO)
 -- ========================================
 
--- Función que actualiza available_seats en trip_segments
+-- 1. Función para validar coherencia payment_status <-> transactions
+CREATE OR REPLACE FUNCTION validate_payment_integrity()
+RETURNS TRIGGER AS $$
+DECLARE
+  transaction_count INT;
+  total_paid DECIMAL(10,2);
+BEGIN
+  -- Solo validar si NO es 'pending' o 'cancelled'
+  IF NEW.payment_status IN ('paid', 'partial') THEN
+    -- Contar transacciones asociadas
+    SELECT COUNT(*), COALESCE(SUM(amount), 0)
+    INTO transaction_count, total_paid
+    FROM transactions
+    WHERE source_type = 'reservation'
+      AND source_id = NEW.id
+      AND type IN ('ticket', 'ticket_deposit');
+    
+    -- VALIDACIÓN CRÍTICA: Debe haber al menos 1 transacción
+    IF transaction_count = 0 THEN
+      RAISE EXCEPTION 'FRAUDE DETECTADO: Reserva % con payment_status=% pero SIN transacciones', 
+        NEW.id, NEW.payment_status;
+    END IF;
+    
+    -- Validar que amount_paid coincida con transacciones
+    IF NEW.payment_status = 'paid' AND total_paid < NEW.total_amount THEN
+      RAISE EXCEPTION 'INCONSISTENCIA: Reserva % marcada como "paid" pero solo tiene $% en transacciones (debe tener $%)',
+        NEW.id, total_paid, NEW.total_amount;
+    END IF;
+    
+    IF NEW.payment_status = 'partial' AND total_paid != NEW.amount_paid THEN
+      RAISE EXCEPTION 'INCONSISTENCIA: Reserva % tiene amount_paid=$% pero transacciones suman $%',
+        NEW.id, NEW.amount_paid, total_paid;
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Prevenir eliminación de transactions si hay reservas activas
+CREATE OR REPLACE FUNCTION prevent_transaction_deletion()
+RETURNS TRIGGER AS $$
+DECLARE
+  reservation_status TEXT;
+  package_status TEXT;
+BEGIN
+  IF OLD.source_type = 'reservation' THEN
+    SELECT status INTO reservation_status
+    FROM reservations
+    WHERE id = OLD.source_id;
+    
+    IF reservation_status IN ('confirmed', 'modified') THEN
+      RAISE EXCEPTION 'NO SE PUEDE ELIMINAR: Transacción % está asociada a reserva activa %',
+        OLD.id, OLD.source_id;
+    END IF;
+  ELSIF OLD.source_type = 'package' THEN
+    SELECT status INTO package_status
+    FROM packages
+    WHERE id = OLD.source_id;
+    
+    IF package_status IN ('pending', 'in_transit') THEN
+      RAISE EXCEPTION 'NO SE PUEDE ELIMINAR: Transacción % está asociada a paquete activo %',
+        OLD.id, OLD.source_id;
+    END IF;
+  END IF;
+  
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Función que actualiza available_seats en trip_segments
 CREATE OR REPLACE FUNCTION update_trip_segment_availability()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -347,18 +261,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger para gestionar disponibilidad automáticamente
-DROP TRIGGER IF EXISTS trg_reservation_availability ON reservations;
-CREATE TRIGGER trg_reservation_availability
-AFTER INSERT OR UPDATE OR DELETE ON reservations
-FOR EACH ROW
-EXECUTE FUNCTION update_trip_segment_availability();
-
--- ========================================
--- PARTE 6: FUNCIÓN ATÓMICA DE CREACIÓN
--- ========================================
-
--- Función que crea reserva + transacción en una sola operación atómica
+-- 4. Función atómica para crear reserva + transacción
 CREATE OR REPLACE FUNCTION create_reservation_with_transaction(
   p_trip_segment_id UUID,
   p_client_id UUID,
@@ -465,6 +368,105 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ========================================
+-- PARTE 5: TRIGGERS (QUINTO)
+-- ========================================
+
+-- Trigger para validar DESPUÉS de UPDATE
+DROP TRIGGER IF EXISTS trg_validate_payment_integrity ON reservations;
+CREATE TRIGGER trg_validate_payment_integrity
+BEFORE UPDATE OF payment_status ON reservations
+FOR EACH ROW
+WHEN (NEW.payment_status != OLD.payment_status)
+EXECUTE FUNCTION validate_payment_integrity();
+
+-- Trigger para prevenir eliminación de transacciones
+DROP TRIGGER IF EXISTS trg_prevent_transaction_deletion ON transactions;
+CREATE TRIGGER trg_prevent_transaction_deletion
+BEFORE DELETE ON transactions
+FOR EACH ROW
+EXECUTE FUNCTION prevent_transaction_deletion();
+
+-- Trigger para gestionar disponibilidad automáticamente
+DROP TRIGGER IF EXISTS trg_reservation_availability ON reservations;
+CREATE TRIGGER trg_reservation_availability
+AFTER INSERT OR UPDATE OR DELETE ON reservations
+FOR EACH ROW
+EXECUTE FUNCTION update_trip_segment_availability();
+
+-- ========================================
+-- PARTE 6: VISTAS DE AUDITORÍA (SEXTO)
+-- ========================================
+
+-- Vista de reservas huérfanas
+CREATE OR REPLACE VIEW v_orphaned_reservations AS
+SELECT 
+  r.id,
+  r.company_id,
+  r.payment_status,
+  r.total_amount,
+  r.amount_paid,
+  r.created_at,
+  r.created_by_user_id,
+  COUNT(t.id) as transaction_count,
+  COALESCE(SUM(t.amount), 0) as total_in_transactions,
+  'HUÉRFANA: Sin transacciones' as issue_type
+FROM reservations r
+LEFT JOIN transactions t ON t.source_type = 'reservation' 
+  AND t.source_id = r.id
+  AND t.type IN ('ticket', 'ticket_deposit')
+WHERE r.payment_status IN ('paid', 'partial')
+  AND r.deleted_at IS NULL
+GROUP BY r.id, r.company_id, r.payment_status, r.total_amount, r.amount_paid, r.created_at, r.created_by_user_id
+HAVING COUNT(t.id) = 0;
+
+-- Vista para detectar descuadres
+CREATE OR REPLACE VIEW v_mismatched_payments AS
+SELECT 
+  r.id,
+  r.company_id,
+  r.payment_status,
+  r.total_amount,
+  r.amount_paid,
+  COALESCE(SUM(t.amount), 0) as total_in_transactions,
+  r.total_amount - COALESCE(SUM(t.amount), 0) as difference,
+  'DESCUADRE: Montos no coinciden' as issue_type
+FROM reservations r
+LEFT JOIN transactions t ON t.source_type = 'reservation' 
+  AND t.source_id = r.id
+  AND t.type IN ('ticket', 'ticket_deposit', 'refund')
+WHERE r.payment_status IN ('paid', 'partial')
+  AND r.deleted_at IS NULL
+GROUP BY r.id, r.total_amount, r.amount_paid, r.payment_status, r.company_id
+HAVING 
+  (r.payment_status = 'paid' AND COALESCE(SUM(t.amount), 0) < r.total_amount) OR
+  (r.payment_status = 'partial' AND COALESCE(SUM(t.amount), 0) != r.amount_paid);
+
+-- Función para reporte diario de integridad
+CREATE OR REPLACE FUNCTION check_financial_integrity()
+RETURNS TABLE(
+  issue_type TEXT,
+  count BIGINT,
+  total_amount DECIMAL(10,2)
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    'Reservas Huérfanas'::TEXT as issue_type,
+    COUNT(*)::BIGINT,
+    COALESCE(SUM(v.total_amount), 0)::DECIMAL(10,2)
+  FROM v_orphaned_reservations v
+  
+  UNION ALL
+  
+  SELECT 
+    'Pagos Descuadrados'::TEXT as issue_type,
+    COUNT(*)::BIGINT,
+    COALESCE(SUM(ABS(v.difference)), 0)::DECIMAL(10,2)
+  FROM v_mismatched_payments v;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ========================================
 -- FIN DEL SCRIPT
 -- ========================================
 
@@ -476,4 +478,3 @@ BEGIN
   RAISE NOTICE '✅ Gestión por tramos habilitada';
   RAISE NOTICE '✅ Trazabilidad completa configurada';
 END $$;
-
