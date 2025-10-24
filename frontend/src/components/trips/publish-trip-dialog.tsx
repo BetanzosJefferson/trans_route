@@ -20,10 +20,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import api from '@/lib/api'
-import { toast } from 'sonner'
-import { CalendarIcon, Loader2 } from 'lucide-react'
-import { format } from 'date-fns'
+import { api } from '@/lib/api'
+import { useToast } from '@/components/ui/use-toast'
+import { Loader2 } from 'lucide-react'
 
 interface PublishTripDialogProps {
   open: boolean
@@ -38,6 +37,7 @@ export function PublishTripDialog({
   onSuccess,
   companyId,
 }: PublishTripDialogProps) {
+  const { toast } = useToast()
   const [routes, setRoutes] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -77,7 +77,11 @@ export function PublishTripDialog({
       setRoutes(data || [])
     } catch (error: any) {
       console.error('Error loading routes:', error)
-      toast.error('Error al cargar rutas')
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Error al cargar rutas',
+      })
     } finally {
       setLoadingRoutes(false)
     }
@@ -106,33 +110,57 @@ export function PublishTripDialog({
 
   const validateForm = (): boolean => {
     if (!selectedRoute) {
-      toast.error('Debes seleccionar una ruta')
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Debes seleccionar una ruta',
+      })
       return false
     }
 
     if (isDateRange) {
       if (!startDate || !endDate) {
-        toast.error('Debes seleccionar el rango de fechas')
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Debes seleccionar el rango de fechas',
+        })
         return false
       }
       if (new Date(startDate) > new Date(endDate)) {
-        toast.error('La fecha de inicio debe ser anterior a la fecha de fin')
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'La fecha de inicio debe ser anterior a la fecha de fin',
+        })
         return false
       }
     } else {
       if (!singleDate) {
-        toast.error('Debes seleccionar una fecha')
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Debes seleccionar una fecha',
+        })
         return false
       }
     }
 
     if (!departureTime) {
-      toast.error('Debes ingresar la hora de salida')
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Debes ingresar la hora de salida',
+      })
       return false
     }
 
     if (capacity < 1) {
-      toast.error('La capacidad debe ser al menos 1')
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'La capacidad debe ser al menos 1',
+      })
       return false
     }
 
@@ -159,9 +187,10 @@ export function PublishTripDialog({
           departure_time: departureTime,
           visibility,
         })
-        toast.success(
-          `Viajes publicados desde ${startDate} hasta ${endDate}`
-        )
+        toast({
+          title: 'Éxito',
+          description: `Viajes publicados desde ${startDate} hasta ${endDate}`,
+        })
       } else {
         // Publicar viaje único
         const departureDateTime = `${singleDate}T${departureTime}:00`
@@ -173,15 +202,20 @@ export function PublishTripDialog({
           departure_datetime: departureDateTime,
           visibility,
         })
-        toast.success('Viaje publicado exitosamente')
+        toast({
+          title: 'Éxito',
+          description: 'Viaje publicado exitosamente',
+        })
       }
 
       onSuccess()
     } catch (error: any) {
       console.error('Error publishing trip:', error)
-      toast.error(
-        error.response?.data?.message || 'Error al publicar viaje'
-      )
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.message || 'Error al publicar viaje',
+      })
     } finally {
       setLoading(false)
     }

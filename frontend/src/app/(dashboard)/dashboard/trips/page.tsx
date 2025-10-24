@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAuth } from '@/components/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,8 +14,8 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, Calendar, MapPin, Users, Clock, Edit, Trash2 } from 'lucide-react'
 import { PublishTripDialog } from '@/components/trips/publish-trip-dialog'
-import api from '@/lib/api'
-import { toast } from 'sonner'
+import { api } from '@/lib/api'
+import { useToast } from '@/components/ui/use-toast'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -39,36 +38,61 @@ interface Trip {
 }
 
 export default function TripsPage() {
-  const { user } = useAuth()
+  const { toast } = useToast()
   const [trips, setTrips] = useState<Trip[]>([])
   const [filteredTrips, setFilteredTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
+  const [companyId, setCompanyId] = useState<string>('')
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterVisibility, setFilterVisibility] = useState<string>('all')
 
-  const companyId = user?.company_id
-
   useEffect(() => {
-    if (companyId) {
-      loadTrips()
+    loadInitialData()
+  }, [])
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true)
+      
+      // Get current user to get company_id
+      const usersResponse = await api.users.getAll()
+      const currentUser = usersResponse[0] // Assuming first user is current logged in user
+      
+      if (currentUser?.company_id) {
+        setCompanyId(currentUser.company_id)
+        await loadTrips(currentUser.company_id)
+      }
+    } catch (error: any) {
+      console.error('Error loading initial data:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudieron cargar los datos',
+      })
+    } finally {
+      setLoading(false)
     }
-  }, [companyId])
+  }
 
   useEffect(() => {
     applyFilters()
   }, [trips, searchTerm, filterVisibility])
 
-  const loadTrips = async () => {
+  const loadTrips = async (companyIdParam?: string) => {
+    const idToUse = companyIdParam || companyId
+    if (!idToUse) return
+
     try {
-      setLoading(true)
-      const data = await api.trips.getAll(companyId!)
+      const data = await api.trips.getAll(idToUse)
       setTrips(data || [])
     } catch (error: any) {
       console.error('Error loading trips:', error)
-      toast.error('Error al cargar viajes')
-    } finally {
-      setLoading(false)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Error al cargar viajes',
+      })
     }
   }
 
@@ -96,7 +120,10 @@ export default function TripsPage() {
   const handlePublishSuccess = () => {
     setIsPublishDialogOpen(false)
     loadTrips()
-    toast.success('Viaje(s) publicado(s) exitosamente')
+    toast({
+      title: 'Éxito',
+      description: 'Viaje(s) publicado(s) exitosamente',
+    })
   }
 
   const handleDeleteTrip = async (tripId: string) => {
@@ -104,11 +131,18 @@ export default function TripsPage() {
 
     try {
       await api.trips.delete(tripId)
-      toast.success('Viaje eliminado')
+      toast({
+        title: 'Éxito',
+        description: 'Viaje eliminado',
+      })
       loadTrips()
     } catch (error: any) {
       console.error('Error deleting trip:', error)
-      toast.error('Error al eliminar viaje')
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Error al eliminar viaje',
+      })
     }
   }
 
@@ -265,7 +299,12 @@ export default function TripsPage() {
                         variant="outline"
                         size="sm"
                         className="flex-1"
-                        onClick={() => toast.info('Función de editar próximamente')}
+                        onClick={() =>
+                          toast({
+                            title: 'Próximamente',
+                            description: 'Función de editar próximamente',
+                          })
+                        }
                       >
                         <Edit className="mr-1 h-3 w-3" />
                         Editar
