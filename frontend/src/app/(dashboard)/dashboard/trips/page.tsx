@@ -16,7 +16,7 @@ import { Plus, Search, Calendar, MapPin, Users, Clock, Edit, Trash2 } from 'luci
 import { PublishTripDialog } from '@/components/trips/publish-trip-dialog'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
-import { formatLocalTime, formatLocalDateFull } from '@/lib/date-utils'
+import { formatLocalTime12h, formatLocalDateFull } from '@/lib/date-utils'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -192,20 +192,23 @@ export default function TripsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Cargando viajes...</p>
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando viajes...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Viajes</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestiona tus viajes publicados
+          <h1 className="text-3xl font-bold">Viajes</h1>
+          <p className="text-muted-foreground mt-2">
+            Gestiona y publica los viajes de tu empresa
           </p>
         </div>
         <Button onClick={() => setIsPublishDialogOpen(true)} size="sm">
@@ -261,19 +264,15 @@ export default function TripsPage() {
               </h3>
               <div className="space-y-3">
                 {groupedTrips[date].map((trip) => (
-                  <Card key={trip.id} className="p-4">
+                  <Card key={trip.id} className="p-5">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-base mb-1">
-                          {trip.route?.name || 'Sin nombre'}
-                        </h4>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
+                        <h4 className="font-semibold text-base mb-1 flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
                           <span className="line-clamp-1">
-                            {trip.route?.origin?.split('|')[0] || 'N/A'} →{' '}
-                            {trip.route?.destination?.split('|')[0] || 'N/A'}
+                            {trip.route?.origin?.split('|')[0] || 'N/A'} → {trip.route?.destination?.split('|')[0] || 'N/A'}
                           </span>
-                        </div>
+                        </h4>
                       </div>
                       <Badge variant={getVisibilityBadgeVariant(trip.visibility)}>
                         {getVisibilityLabel(trip.visibility)}
@@ -284,7 +283,7 @@ export default function TripsPage() {
                       <div className="flex items-center gap-2">
                         <Clock className="h-3 w-3 text-muted-foreground" />
                         <span>
-                          {formatLocalTime(trip.departure_datetime)}
+                          {formatLocalTime12h(trip.departure_datetime)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -293,7 +292,7 @@ export default function TripsPage() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-4 border-t mt-4">
                       <Button
                         variant="outline"
                         size="sm"
@@ -305,7 +304,7 @@ export default function TripsPage() {
                           })
                         }
                       >
-                        <Edit className="mr-1 h-3 w-3" />
+                        <Edit className="mr-2 h-4 w-4" />
                         Editar
                       </Button>
                       <Button
@@ -313,7 +312,7 @@ export default function TripsPage() {
                         size="sm"
                         onClick={() => handleDeleteTrip(trip.id)}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </Card>

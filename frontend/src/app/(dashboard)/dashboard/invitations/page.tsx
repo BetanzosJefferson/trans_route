@@ -88,10 +88,10 @@ export default function InvitationsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="h-full flex flex-col p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Invitaciones</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold">Invitaciones</h1>
+        <p className="text-muted-foreground mt-2">
           Genera enlaces de invitación para que nuevas empresas se registren en TransRoute
         </p>
       </div>
@@ -136,7 +136,10 @@ export default function InvitationsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-center py-8 text-muted-foreground">Cargando...</p>
+            <div className="text-center py-8">
+              <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-3"></div>
+              <p className="text-muted-foreground text-sm">Cargando invitaciones...</p>
+            </div>
           ) : invitations.length === 0 ? (
             <p className="text-center py-8 text-muted-foreground">
               No hay invitaciones generadas

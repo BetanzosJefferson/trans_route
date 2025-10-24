@@ -182,12 +182,12 @@ export default function RoutesPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Rutas</h1>
-          <p className="text-muted-foreground">
-            Gestiona las rutas de tu empresa
+          <h1 className="text-3xl font-bold">Rutas</h1>
+          <p className="text-muted-foreground mt-2">
+            Crea y gestiona las rutas de tu empresa
           </p>
         </div>
         <Button onClick={handleCreateRoute}>
@@ -212,6 +212,7 @@ export default function RoutesPage() {
           </CardContent>
         </Card>
       ) : (
+        <div className="flex-1 overflow-auto">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {routes.map((route) => {
             const origin = parseLocation(route.origin)
@@ -295,23 +296,23 @@ export default function RoutesPage() {
                       )}
                     </div>
 
-                    <div className="flex gap-2 pt-3 border-t">
+                    <div className="flex gap-2 pt-4 border-t">
                       <Button
                         variant="outline"
                         size="sm"
                         className="flex-1"
                         onClick={() => handleEditRoute(route)}
                       >
-                        <Pencil className="mr-1 h-3 w-3" />
+                        <Pencil className="mr-2 h-4 w-4" />
                         Editar
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-destructive hover:text-destructive"
+                        className="flex-1 border-destructive text-destructive hover:bg-destructive/10"
                         onClick={() => setDeletingRoute(route)}
                       >
-                        <Trash2 className="mr-1 h-3 w-3" />
+                        <Trash2 className="mr-2 h-4 w-4" />
                         Eliminar
                       </Button>
                     </div>
@@ -370,6 +371,7 @@ export default function RoutesPage() {
               </Card>
             )
           })}
+        </div>
         </div>
       )}
 

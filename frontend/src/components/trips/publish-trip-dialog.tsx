@@ -350,11 +350,11 @@ export function PublishTripDialog({
                         {combo.origin?.split('|')[0]} → {combo.destination?.split('|')[0]}
                       </span>
                       {combo.isIntraCity && (
-                        <span className="ml-2 text-orange-600 text-[10px]">(misma ciudad)</span>
+                        <span className="ml-2 text-warning text-[10px]">(misma ciudad)</span>
                       )}
                     </div>
                     <div className="text-right">
-                      {combo.price && <div className="font-semibold text-green-600">${combo.price}</div>}
+                      {combo.price && <div className="font-semibold text-success">${combo.price}</div>}
                       {combo.time && (
                         <div className="text-[10px] text-muted-foreground">
                           {combo.time.hours}h {combo.time.minutes}min
