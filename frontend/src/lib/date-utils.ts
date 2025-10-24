@@ -8,7 +8,7 @@
  */
 
 import { format as dateFnsFormat } from 'date-fns'
-import { formatInTimeZone, zonedTimeToUtc } from 'date-fns-tz'
+import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { es } from 'date-fns/locale'
 
 /**
@@ -113,7 +113,9 @@ export function formatLocalDateFull(date: string | Date): string {
 export function localToUTC(dateStr: string, timeStr: string): string {
   if (!dateStr || !timeStr) return ''
   const localDateTime = `${dateStr}T${timeStr}:00`
-  return zonedTimeToUtc(localDateTime, TIMEZONE).toISOString()
+  // Interpretar como fecha en timezone de México y convertir a UTC
+  const utcDate = fromZonedTime(localDateTime, TIMEZONE)
+  return utcDate.toISOString()
 }
 
 /**
