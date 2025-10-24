@@ -45,7 +45,7 @@ export function PublishTripDialog({
 
   // Form state
   const [selectedRoute, setSelectedRoute] = useState('')
-  const [selectedTemplate, setSelectedTemplate] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState('none')
   const [isDateRange, setIsDateRange] = useState(false)
   const [singleDate, setSingleDate] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -98,7 +98,7 @@ export function PublishTripDialog({
 
   const resetForm = () => {
     setSelectedRoute('')
-    setSelectedTemplate('')
+    setSelectedTemplate('none')
     setIsDateRange(false)
     setSingleDate('')
     setStartDate('')
@@ -175,11 +175,14 @@ export function PublishTripDialog({
     setLoading(true)
 
     try {
+      // Preparar route_template_id (undefined si es 'none')
+      const templateId = selectedTemplate === 'none' ? undefined : selectedTemplate
+
       if (isDateRange) {
         // Publicar múltiples viajes
         await api.trips.publishMultiple({
           route_id: selectedRoute,
-          route_template_id: selectedTemplate || undefined,
+          route_template_id: templateId,
           company_id: companyId,
           capacity,
           start_date: startDate,
@@ -196,7 +199,7 @@ export function PublishTripDialog({
         const departureDateTime = `${singleDate}T${departureTime}:00`
         await api.trips.create({
           route_id: selectedRoute,
-          route_template_id: selectedTemplate || undefined,
+          route_template_id: templateId,
           company_id: companyId,
           capacity,
           departure_datetime: departureDateTime,
@@ -262,7 +265,7 @@ export function PublishTripDialog({
                   <SelectValue placeholder="Sin plantilla" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin plantilla</SelectItem>
+                  <SelectItem value="none">Sin plantilla</SelectItem>
                   {templates
                     .filter((t) => t.is_active)
                     .map((template) => (
