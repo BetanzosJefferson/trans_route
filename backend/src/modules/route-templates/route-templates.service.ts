@@ -168,7 +168,15 @@ export class RouteTemplatesService {
     }
 
     const stops = [route.origin, ...(route.stops || []), route.destination];
-    const combinations = [];
+    const combinations: Array<{
+      key: string;
+      origin: string;
+      destination: string;
+      originCity: string;
+      destCity: string;
+      isIntraCity: boolean;
+      isConsecutive: boolean;
+    }> = [];
 
     for (let i = 0; i < stops.length; i++) {
       for (let j = i + 1; j < stops.length; j++) {
