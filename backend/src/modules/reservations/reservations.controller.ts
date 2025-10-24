@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { SearchTripsDto } from './dto/search-trips.dto';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 
@@ -24,12 +25,19 @@ export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Crear nueva reservación' })
+  @ApiOperation({ summary: 'Crear nueva reservación con transacción atómica' })
   create(
     @Body() createReservationDto: CreateReservationDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('company_id') companyId: string,
   ) {
-    return this.reservationsService.create(createReservationDto, userId);
+    return this.reservationsService.create(createReservationDto, userId, companyId);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar viajes disponibles para Nueva Reserva' })
+  searchAvailableTrips(@Query() filters: SearchTripsDto) {
+    return this.reservationsService.searchAvailableTrips(filters);
   }
 
   @Get()

@@ -1,101 +1,63 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsUUID,
-  IsNotEmpty,
+  IsInt,
   IsNumber,
   IsEnum,
   IsOptional,
   IsString,
-  IsArray,
-  ValidateNested,
+  Min,
+  Max,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { PaymentStatus } from '../../../shared/enums/payment-status.enum';
-import { ReservationStatus } from '../../../shared/enums/reservation-status.enum';
-
-class PassengerDto {
-  @ApiProperty({ description: 'Nombre del pasajero' })
-  @IsString()
-  @IsNotEmpty()
-  first_name: string;
-
-  @ApiProperty({ description: 'Apellido del pasajero' })
-  @IsString()
-  @IsNotEmpty()
-  last_name: string;
-
-  @ApiProperty({ description: 'Edad del pasajero', required: false })
-  @IsOptional()
-  @IsNumber()
-  age?: number;
-
-  @ApiProperty({ description: 'Tipo de documento', required: false })
-  @IsOptional()
-  @IsString()
-  document_type?: string;
-
-  @ApiProperty({ description: 'Número de documento', required: false })
-  @IsOptional()
-  @IsString()
-  document_number?: string;
-
-  @ApiProperty({ description: 'Número de asiento', required: false })
-  @IsOptional()
-  @IsString()
-  seat_number?: string;
-}
 
 export class CreateReservationDto {
-  @ApiProperty({ description: 'ID del cliente' })
-  @IsUUID()
-  @IsNotEmpty()
-  client_id: string;
-
   @ApiProperty({ description: 'ID del segmento de viaje' })
   @IsUUID()
-  @IsNotEmpty()
   trip_segment_id: string;
 
-  @ApiProperty({ description: 'Número de asientos reservados', default: 1 })
-  @IsNumber()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'ID del cliente' })
+  @IsUUID()
+  client_id: string;
+
+  @ApiProperty({ description: 'Número de asientos a reservar', minimum: 1 })
+  @IsInt()
+  @Min(1)
+  @Max(50)
   seats_reserved: number;
 
-  @ApiProperty({ description: 'Monto total' })
+  @ApiProperty({ description: 'Monto total de la reserva' })
   @IsNumber()
-  @IsNotEmpty()
+  @Min(0)
   total_amount: number;
 
-  @ApiProperty({ description: 'Estado de pago', enum: PaymentStatus })
-  @IsEnum(PaymentStatus)
-  @IsOptional()
-  payment_status?: PaymentStatus;
+  @ApiProperty({
+    description: 'Estado del pago',
+    enum: ['pending', 'partial', 'paid'],
+  })
+  @IsEnum(['pending', 'partial', 'paid'])
+  payment_status: 'pending' | 'partial' | 'paid';
 
-  @ApiProperty({ description: 'Estado de reservación', enum: ReservationStatus })
-  @IsEnum(ReservationStatus)
+  @ApiProperty({
+    description:
+      'Monto pagado (para anticipo o pago completo)',
+    required: false,
+  })
+  @IsNumber()
   @IsOptional()
-  status?: ReservationStatus;
+  @Min(0)
+  amount_paid?: number;
+
+  @ApiProperty({
+    description: 'Método de pago',
+    enum: ['cash', 'card', 'transfer'],
+    required: false,
+  })
+  @IsEnum(['cash', 'card', 'transfer'])
+  @IsOptional()
+  payment_method?: 'cash' | 'card' | 'transfer';
 
   @ApiProperty({ description: 'Notas adicionales', required: false })
-  @IsOptional()
   @IsString()
+  @IsOptional()
   notes?: string;
-
-  @ApiProperty({ description: 'Código de cupón', required: false })
-  @IsOptional()
-  @IsString()
-  coupon_code?: string;
-
-  @ApiProperty({ description: 'ID de la empresa' })
-  @IsUUID()
-  @IsNotEmpty()
-  company_id: string;
-
-  @ApiProperty({ description: 'Lista de pasajeros', type: [PassengerDto], required: false })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => PassengerDto)
-  passengers?: PassengerDto[];
 }
-

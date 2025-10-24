@@ -157,8 +157,22 @@ class ApiClient {
 
   reservations = {
     getAll: (companyId: string, filters?: any) => {
-      const params = new URLSearchParams({ company_id: companyId, ...filters })
-      return this.get(`/reservations?${params}`)
+      const params = new URLSearchParams({ company_id: companyId })
+      if (filters) {
+        Object.keys(filters).forEach((key) => {
+          if (filters[key]) params.append(key, filters[key].toString())
+        })
+      }
+      return this.get(`/reservations?${params.toString()}`)
+    },
+    searchAvailableTrips: (filters: any) => {
+      const params = new URLSearchParams()
+      Object.keys(filters).forEach((key) => {
+        if (filters[key] !== undefined && filters[key] !== null) {
+          params.append(key, filters[key].toString())
+        }
+      })
+      return this.get(`/reservations/search?${params.toString()}`)
     },
     getOne: (id: string) => this.get(`/reservations/${id}`),
     create: (data: any) => this.post('/reservations', data),

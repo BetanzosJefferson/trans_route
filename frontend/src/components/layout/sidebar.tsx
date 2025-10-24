@@ -15,15 +15,17 @@ import {
   Settings,
   Building2,
   UserPlus,
+  PlusCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
   { href: '/dashboard/invitations', icon: UserPlus, label: 'Invitaciones', superAdminOnly: true },
+  { href: '/dashboard/nueva-reserva', icon: PlusCircle, label: 'Nueva Reserva', priority: true },
+  { href: '/dashboard/reservations', icon: Users, label: 'Reservaciones' },
   { href: '/dashboard/trips', icon: Bus, label: 'Viajes' },
   { href: '/dashboard/routes', icon: Route, label: 'Rutas' },
-  { href: '/dashboard/reservations', icon: Users, label: 'Reservaciones' },
   { href: '/dashboard/packages', icon: Package, label: 'Paquetería' },
   { href: '/dashboard/vehicles', icon: Car, label: 'Vehículos' },
   { href: '/dashboard/finances', icon: DollarSign, label: 'Finanzas' },

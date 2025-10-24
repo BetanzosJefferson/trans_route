@@ -2,61 +2,116 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { SearchTripsDto } from './dto/search-trips.dto';
 
 @Injectable()
 export class ReservationsService {
   constructor(private supabaseService: SupabaseService) {}
 
-  async create(createReservationDto: CreateReservationDto, userId: string) {
+  async create(createReservationDto: CreateReservationDto, userId: string, companyId: string) {
     const supabase = this.supabaseService.getServiceClient();
 
-    // Check seat availability
-    const { data: segment } = await supabase
-      .from('trip_segments')
-      .select('available_seats')
-      .eq('id', createReservationDto.trip_segment_id)
-      .single();
+    // Usar función atómica de PostgreSQL para crear reserva + transacción juntas
+    const { data, error } = await supabase.rpc('create_reservation_with_transaction', {
+      p_trip_segment_id: createReservationDto.trip_segment_id,
+      p_client_id: createReservationDto.client_id,
+      p_seats_reserved: createReservationDto.seats_reserved,
+      p_total_amount: createReservationDto.total_amount,
+      p_payment_status: createReservationDto.payment_status,
+      p_amount_paid: createReservationDto.amount_paid || 0,
+      p_payment_method: createReservationDto.payment_method || 'cash',
+      p_user_id: userId,
+      p_company_id: companyId,
+      p_notes: createReservationDto.notes || null,
+    });
 
-    if (!segment || segment.available_seats < createReservationDto.seats_reserved) {
-      throw new BadRequestException('No hay suficientes asientos disponibles');
+    if (error) {
+      throw new BadRequestException(`Error creando reserva: ${error.message}`);
     }
 
-    // Create reservation
-    const reservationData = {
-      ...createReservationDto,
-      created_by_user_id: userId,
-      last_updated_by_user_id: userId,
-    };
-
-    const { data: reservation, error: reservationError } = await supabase
+    // Obtener la reserva completa con sus relaciones
+    const { data: reservation, error: fetchError } = await supabase
       .from('reservations')
-      .insert([reservationData])
-      .select()
+      .select(`
+        *,
+        client:clients(*),
+        trip_segment:trip_segments(*, trip:trips(*, route:routes(*)))
+      `)
+      .eq('id', data.reservation_id)
       .single();
 
-    if (reservationError) {
-      throw new Error(`Error creating reservation: ${reservationError.message}`);
-    }
-
-    // Update available seats
-    await supabase
-      .from('trip_segments')
-      .update({
-        available_seats: segment.available_seats - createReservationDto.seats_reserved,
-      })
-      .eq('id', createReservationDto.trip_segment_id);
-
-    // Create passengers if provided
-    if (createReservationDto.passengers && createReservationDto.passengers.length > 0) {
-      const passengersData = createReservationDto.passengers.map((p) => ({
-        ...p,
-        reservation_id: reservation.id,
-      }));
-
-      await supabase.from('passengers').insert(passengersData);
+    if (fetchError) {
+      throw new Error(`Error obteniendo reserva: ${fetchError.message}`);
     }
 
     return reservation;
+  }
+
+  /**
+   * Busca viajes disponibles para "Nueva Reserva"
+   * Si no hay filtros, retorna viajes principales de hoy/mañana
+   */
+  async searchAvailableTrips(filters: SearchTripsDto) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    // Si no hay filtros específicos, cargar viajes principales por defecto
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const dateFrom = filters.date_from || today.toISOString();
+    const dateTo = filters.date_to || tomorrow.toISOString();
+
+    let query = supabase
+      .from('trip_segments')
+      .select(`
+        *,
+        trip:trips(
+          id,
+          departure_datetime,
+          capacity,
+          visibility,
+          route:routes(
+            id,
+            name,
+            origin,
+            destination,
+            distance_km,
+            estimated_duration_minutes
+          )
+        )
+      `)
+      .gte('departure_time', dateFrom)
+      .lte('departure_time', dateTo)
+      .gt('available_seats', filters.min_seats || 0);
+
+    // Filtros opcionales
+    if (filters.company_id) {
+      query = query.eq('company_id', filters.company_id);
+    }
+
+    if (filters.origin) {
+      query = query.eq('origin', filters.origin);
+    }
+
+    if (filters.destination) {
+      query = query.eq('destination', filters.destination);
+    }
+
+    // Por defecto, solo viajes principales (origen-destino completo)
+    if (filters.main_trips_only !== false) {
+      query = query.eq('is_main_trip', true);
+    }
+
+    query = query.order('departure_time', { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Error buscando viajes: ${error.message}`);
+    }
+
+    return data || [];
   }
 
   async findAll(companyId: string, filters?: any) {
