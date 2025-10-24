@@ -58,11 +58,12 @@
 ```
 📝 ANOTA AQUÍ:
 
-Project URL: _____________________________________________
+Project URL: https://tyahpjhlkhvlbrmdmdyj.supabase.co
 
-anon/public key: _________________________________________
+anon/public key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5YWhwamhsa2h2bGJybWRtZHlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyNjE5NjksImV4cCI6MjA3NjgzNzk2OX0.H5s77ggkusjHa3CNb71smy9bxqBPcenOPaLaYrqctFk
 
-service_role key: ________________________________________
+service_role key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5YWhwamhsa2h2bGJybWRtZHlqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTI2MTk2OSwiZXhwIjoyMDc2ODM3OTY5fQ.VzDtO634LPHvPoNMlmnjVptE-qiJHH_IgdZ04aQGyBU
+
 (Click "Reveal" primero para verla)
 ```
 
