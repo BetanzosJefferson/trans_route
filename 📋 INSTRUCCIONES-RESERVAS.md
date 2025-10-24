@@ -14,12 +14,24 @@ He implementado el **sistema completo de reservas** con integridad financiera. A
 2. Ve a: **SQL Editor** (menú lateral izquierdo)
 3. Click en **"New query"**
 
-### 2. Copiar y Ejecutar el SQL
+### 2. Ejecutar SQL (2 pasos - IMPORTANTE EL ORDEN)
 
-1. Abre el archivo: `database/enhance-reservations-schema.sql`
-2. **Copia TODO el contenido** del archivo
+**⚠️ Debes ejecutar 2 archivos en este orden:**
+
+#### Paso 2.1: Ejecutar PART1 (ENUMs)
+1. Abre el archivo: `database/enhance-reservations-schema-PART1.sql`
+2. **Copia TODO el contenido**
 3. Pégalo en el editor SQL de Supabase
-4. Click en **"Run"** (o presiona `Ctrl+Enter`)
+4. Click en **"Run"** 
+5. Deberías ver: `✅ PARTE 1 COMPLETADA: ENUMs creados`
+
+#### Paso 2.2: Ejecutar PART2 (Resto)
+1. Ahora abre: `database/enhance-reservations-schema-PART2.sql`
+2. **Copia TODO el contenido**
+3. Pégalo en el editor SQL de Supabase
+4. Click en **"Run"**
+
+**¿Por qué 2 archivos?** PostgreSQL requiere que los nuevos valores de ENUM se committeen antes de usarse. Es una medida de seguridad.
 
 ### 3. Verificar que fue exitoso
 
@@ -32,19 +44,13 @@ Deberías ver al final del output:
 ✅ Trazabilidad completa configurada
 ```
 
-### ⚠️ Si sale error "column r.amount_paid does not exist"
+### ⚠️ Errores Comunes y Soluciones
 
-Ya está corregido en la última versión del archivo. **Solución:**
+#### Error: "unsafe use of new value 'partial' of enum type"
+**Solución:** Ejecuta PART1 PRIMERO, luego PART2. No ambos juntos.
 
-1. Asegúrate de copiar **TODO el contenido actualizado** del archivo
-2. El archivo debe empezar con: `-- PARTE 1: AMPLIAR ENUMs (PRIMERO)`
-3. Si persiste, ejecuta este SQL primero:
-
-```sql
--- Solo si hay error, ejecutar esto ANTES del archivo principal
-ALTER TABLE reservations ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(10, 2) DEFAULT 0;
-ALTER TABLE reservations ADD COLUMN IF NOT EXISTS amount_pending DECIMAL(10, 2) DEFAULT 0;
-```
+#### Error: "column r.amount_paid does not exist"
+**Solución:** Asegúrate de ejecutar PART2 completo después de PART1.
 
 ---
 
