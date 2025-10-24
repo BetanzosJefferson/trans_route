@@ -23,6 +23,7 @@ import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
+import { localToUTC, getTodayLocalDateString } from '@/lib/date-utils'
 
 interface PublishTripDialogProps {
   open: boolean
@@ -196,7 +197,8 @@ export function PublishTripDialog({
         })
       } else {
         // Publicar viaje único
-        const departureDateTime = `${singleDate}T${departureTime}:00`
+        // Convertir de hora local de México a UTC
+        const departureDateTime = localToUTC(singleDate, departureTime)
         await api.trips.create({
           route_id: selectedRoute,
           route_template_id: templateId,
@@ -308,7 +310,7 @@ export function PublishTripDialog({
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={getTodayLocalDateString()}
                 />
               </div>
               <div className="space-y-2">
@@ -318,7 +320,7 @@ export function PublishTripDialog({
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  min={startDate || new Date().toISOString().split('T')[0]}
+                  min={startDate || getTodayLocalDateString()}
                 />
               </div>
             </div>
@@ -327,10 +329,10 @@ export function PublishTripDialog({
               <Label htmlFor="single-date">Fecha *</Label>
               <Input
                 id="single-date"
-                type="date"
-                value={singleDate}
-                onChange={(e) => setSingleDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                  type="date"
+                  value={singleDate}
+                  onChange={(e) => setSingleDate(e.target.value)}
+                  min={getTodayLocalDateString()}
               />
             </div>
           )}

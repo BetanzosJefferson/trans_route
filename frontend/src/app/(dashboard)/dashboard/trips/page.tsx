@@ -16,6 +16,7 @@ import { Plus, Search, Calendar, MapPin, Users, Clock, Edit, Trash2 } from 'luci
 import { PublishTripDialog } from '@/components/trips/publish-trip-dialog'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
+import { formatLocalTime, formatLocalDateFull } from '@/lib/date-utils'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -256,9 +257,7 @@ export default function TripsPage() {
             <div key={date} className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                {format(new Date(date), "EEEE, d 'de' MMMM 'de' yyyy", {
-                  locale: es,
-                })}
+                {formatLocalDateFull(date)}
               </h3>
               <div className="space-y-3">
                 {groupedTrips[date].map((trip) => (
@@ -285,7 +284,7 @@ export default function TripsPage() {
                       <div className="flex items-center gap-2">
                         <Clock className="h-3 w-3 text-muted-foreground" />
                         <span>
-                          {format(new Date(trip.departure_datetime), 'HH:mm')}
+                          {formatLocalTime(trip.departure_datetime)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
