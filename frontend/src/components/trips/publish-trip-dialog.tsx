@@ -41,6 +41,8 @@ export function PublishTripDialog({
   const { toast } = useToast()
   const [routes, setRoutes] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
+  const [combinations, setCombinations] = useState<any[]>([])
+  const [loadingCombinations, setLoadingCombinations] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingRoutes, setLoadingRoutes] = useState(false)
 
@@ -67,7 +69,7 @@ export function PublishTripDialog({
       loadTemplates(selectedRoute)
     } else {
       setTemplates([])
-      setSelectedTemplate('')
+      setSelectedTemplate('none')
     }
   }, [selectedRoute])
 
@@ -94,6 +96,49 @@ export function PublishTripDialog({
       setTemplates(data || [])
     } catch (error: any) {
       console.error('Error loading templates:', error)
+    }
+  }
+
+  // Cargar combinaciones cuando se selecciona template
+  useEffect(() => {
+    if (selectedRoute && selectedTemplate !== 'none') {
+      loadCombinations()
+    } else {
+      setCombinations([])
+    }
+  }, [selectedRoute, selectedTemplate])
+
+  const loadCombinations = async () => {
+    if (!selectedRoute) return
+
+    try {
+      setLoadingCombinations(true)
+      const data = await api.routeTemplates.getCombinations(selectedRoute)
+      
+      // Si hay template seleccionado, filtrar por las combinaciones habilitadas
+      if (selectedTemplate && selectedTemplate !== 'none') {
+        const template = templates.find(t => t.id === selectedTemplate)
+        if (template && template.price_configuration) {
+          const filtered = data.filter((combo: any) => {
+            const config = template.price_configuration[combo.key]
+            return config && config.enabled
+          }).map((combo: any) => ({
+            ...combo,
+            price: template.price_configuration[combo.key]?.price || 0,
+            time: template.time_configuration?.[combo.key] || null
+          }))
+          setCombinations(filtered)
+        } else {
+          setCombinations(data)
+        }
+      } else {
+        setCombinations(data)
+      }
+    } catch (error: any) {
+      console.error('Error loading combinations:', error)
+      setCombinations([])
+    } finally {
+      setLoadingCombinations(false)
     }
   }
 
@@ -216,10 +261,15 @@ export function PublishTripDialog({
       onSuccess()
     } catch (error: any) {
       console.error('Error publishing trip:', error)
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack
+      })
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.message || 'Error al publicar viaje',
+        description: error.response?.data?.message || error.message || 'Error al publicar viaje',
       })
     } finally {
       setLoading(false)
@@ -280,6 +330,45 @@ export function PublishTripDialog({
               <p className="text-xs text-muted-foreground">
                 La plantilla define precios y tiempos entre paradas
               </p>
+            </div>
+          )}
+
+          {/* Preview de combinaciones */}
+          {combinations.length > 0 && selectedTemplate !== 'none' && (
+            <div className="space-y-2 p-3 border rounded-lg bg-muted/50">
+              <Label className="text-sm font-semibold">
+                Preview de combinaciones ({combinations.length})
+              </Label>
+              <div className="max-h-[200px] overflow-y-auto space-y-2">
+                {combinations.slice(0, 10).map((combo: any, index: number) => (
+                  <div 
+                    key={combo.key || index} 
+                    className="text-xs flex justify-between items-center p-2 bg-background rounded border"
+                  >
+                    <div className="flex-1">
+                      <span className="font-medium">
+                        {combo.origin?.split('|')[0]} → {combo.destination?.split('|')[0]}
+                      </span>
+                      {combo.isIntraCity && (
+                        <span className="ml-2 text-orange-600 text-[10px]">(misma ciudad)</span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      {combo.price && <div className="font-semibold text-green-600">${combo.price}</div>}
+                      {combo.time && (
+                        <div className="text-[10px] text-muted-foreground">
+                          {combo.time.hours}h {combo.time.minutes}min
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {combinations.length > 10 && (
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    ... y {combinations.length - 10} combinaciones más
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
