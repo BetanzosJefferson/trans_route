@@ -1,0 +1,73 @@
+========================================
+  TRANSROUTE - COMANDOS PARA COPIAR
+========================================
+
+PASO 1: SUPABASE
+----------------
+1. Ir a: https://supabase.com/dashboard
+2. Crear nuevo proyecto llamado "transroute"
+3. Ir a SQL Editor
+4. Ejecutar database/schema.sql
+5. Ejecutar database/seed.sql
+
+
+PASO 2: BACKEND
+---------------
+Terminal 1 - Ejecuta estos comandos UNO POR UNO:
+
+cd /Users/williambe/Documents/transroute/backend
+cp .env.example .env
+nano .env
+(Pegar tus credenciales de Supabase, Ctrl+X para salir)
+npm install
+npm run start:dev
+
+
+PASO 3: FRONTEND  
+----------------
+Terminal 2 - Ejecuta estos comandos UNO POR UNO:
+
+cd /Users/williambe/Documents/transroute/frontend
+cp .env.local.example .env.local
+nano .env.local
+(Pegar tus credenciales de Supabase, Ctrl+X para salir)
+npm install
+npm run dev
+
+
+PASO 4: ABRIR NAVEGADOR
+------------------------
+http://localhost:3001
+
+Usuario: owner@transroute.com
+Password: password123
+
+
+========================================
+URLs IMPORTANTES:
+========================================
+Frontend:     http://localhost:3001
+Backend API:  http://localhost:3000/api/v1
+Swagger Docs: http://localhost:3000/api/docs
+
+
+========================================
+CREDENCIALES DE SUPABASE (llenar):
+========================================
+Project URL:  _________________________________
+Anon Key:     _________________________________
+Service Key:  _________________________________
+
+
+========================================
+SOLUCIÓN RÁPIDA SI HAY ERRORES:
+========================================
+
+Puerto ocupado:
+  lsof -ti:3000 | xargs kill -9
+  lsof -ti:3001 | xargs kill -9
+
+Reinstalar:
+  cd backend && rm -rf node_modules && npm install
+  cd frontend && rm -rf node_modules .next && npm install
+
