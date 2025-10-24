@@ -4,6 +4,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { UsersModule } from './modules/users/users.module';
 import { RoutesModule } from './modules/routes/routes.module';
+import { RouteTemplatesModule } from './modules/route-templates/route-templates.module';
 import { TripsModule } from './modules/trips/trips.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { ClientsModule } from './modules/clients/clients.module';
@@ -30,6 +31,7 @@ import { SupabaseModule } from './shared/supabase/supabase.module';
     CompaniesModule,
     UsersModule,
     RoutesModule,
+    RouteTemplatesModule,
     TripsModule,
     ReservationsModule,
     ClientsModule,
