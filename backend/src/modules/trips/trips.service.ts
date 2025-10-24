@@ -57,7 +57,7 @@ export class TripsService {
     }
 
     // Obtener plantilla si existe
-    let template = null;
+    let template: any = null;
     if (routeTemplateId) {
       const { data } = await supabase
         .from('route_templates')
@@ -276,7 +276,7 @@ export class TripsService {
     departure_time: string;
     visibility: string;
   }) {
-    const trips = [];
+    const trips: any[] = [];
     const startDate = new Date(publishData.start_date);
     const endDate = new Date(publishData.end_date);
     const [hours, minutes] = publishData.departure_time.split(':');
