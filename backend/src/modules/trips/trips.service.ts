@@ -3,10 +3,15 @@ import { SupabaseService } from '../../shared/supabase/supabase.service';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { UpdateTripDto } from './dto/update-trip.dto';
 import { CreateTripSegmentDto } from './dto/create-trip-segment.dto';
+import { StopsService } from '../stops/stops.service';
+
 
 @Injectable()
 export class TripsService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private stopsService: StopsService,
+  ) {}
 
   async create(createTripDto: CreateTripDto) {
     const supabase = this.supabaseService.getServiceClient();
@@ -68,6 +73,9 @@ export class TripsService {
     }
 
     const stops = [route.origin, ...(route.stops || []), route.destination];
+    const stopIds = route.stop_ids
+      ? [route.origin_stop_id, ...(route.stop_ids || []), route.destination_stop_id]
+      : [];
     const segments: any[] = [];
 
     let currentTime = new Date(departureTime);
@@ -105,11 +113,33 @@ export class TripsService {
 
         // Solo crear segmentos habilitados
         if (enabled) {
+          // Obtener IDs si no están disponibles (buscar/crear)
+          let origin_stop_id = stopIds[i] || null;
+          let destination_stop_id = stopIds[j] || null;
+
+          if (!origin_stop_id && stops[i]) {
+            const originStop = await this.stopsService.findOrCreate({
+              full_location: stops[i],
+              company_id: route.company_id,
+            });
+            origin_stop_id = originStop.id;
+          }
+
+          if (!destination_stop_id && stops[j]) {
+            const destStop = await this.stopsService.findOrCreate({
+              full_location: stops[j],
+              company_id: route.company_id,
+            });
+            destination_stop_id = destStop.id;
+          }
+
           segments.push({
             trip_id: tripId,
             company_id: route.company_id,
             origin: stops[i],
             destination: stops[j],
+            origin_stop_id,
+            destination_stop_id,
             price,
             available_seats: capacity,
             is_main_trip: isMainTrip,
@@ -311,8 +341,8 @@ export class TripsService {
 
   async searchAvailableTrips(filters: {
     company_id: string;
-    origin?: string;
-    destination?: string;
+    origin_stop_id?: string;
+    destination_stop_id?: string;
     date_from: string;
     date_to: string;
     min_seats?: number;
@@ -325,32 +355,35 @@ export class TripsService {
       .select(
         `
         *,
-        trip:trips(
+        trip:trips!inner(
           id,
           route_id,
           vehicle_id,
           driver_id,
           departure_datetime,
-          visibility
+          visibility,
+          deleted_at
         )
       `,
       )
       .eq('company_id', filters.company_id)
       .gte('departure_time', filters.date_from)
       .lte('departure_time', filters.date_to)
-      .gt('available_seats', filters.min_seats || 0);
+      .gt('available_seats', filters.min_seats || 0)
+      .is('trip.deleted_at', null)
+      .eq('trip.visibility', 'published');
 
     // Por defecto solo main trips
     if (filters.main_trips_only !== false) {
       query = query.eq('is_main_trip', true);
     }
 
-    // Búsqueda específica por origen/destino
-    if (filters.origin) {
-      query = query.eq('origin', filters.origin);
+    // Búsqueda por IDs de paradas
+    if (filters.origin_stop_id) {
+      query = query.eq('origin_stop_id', filters.origin_stop_id);
     }
-    if (filters.destination) {
-      query = query.eq('destination', filters.destination);
+    if (filters.destination_stop_id) {
+      query = query.eq('destination_stop_id', filters.destination_stop_id);
     }
 
     query = query.order('departure_time', { ascending: true });
@@ -361,7 +394,12 @@ export class TripsService {
       throw new Error(`Search error: ${error.message}`);
     }
 
-    return data;
+    // Filtrar trips eliminados (doble verificación)
+    const results = (data || []).filter(
+      (segment) => segment.trip && !segment.trip.deleted_at,
+    );
+
+    return results;
   }
 }
 

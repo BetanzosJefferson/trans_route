@@ -123,6 +123,7 @@ class ApiClient {
   routes = {
     getAll: (companyId: string) => this.get(`/routes?company_id=${companyId}`),
     getOne: (id: string) => this.get(`/routes/${id}`),
+    getAllStops: (companyId: string) => this.get(`/routes/stops/all?company_id=${companyId}`),
     create: (data: any) => this.post('/routes', data),
     update: (id: string, data: any) => this.patch(`/routes/${id}`, data),
     delete: (id: string) => this.delete(`/routes/${id}`),
@@ -173,6 +174,14 @@ class ApiClient {
         }
       })
       return this.get(`/reservations/search?${params.toString()}`)
+    },
+    getAvailableOrigins: (companyId: string, dateFrom: string, dateTo: string) => {
+      const params = new URLSearchParams({ company_id: companyId, date_from: dateFrom, date_to: dateTo })
+      return this.get(`/reservations/origins?${params.toString()}`)
+    },
+    getAvailableDestinations: (companyId: string, originStopId: string, dateFrom: string, dateTo: string) => {
+      const params = new URLSearchParams({ company_id: companyId, origin_stop_id: originStopId, date_from: dateFrom, date_to: dateTo })
+      return this.get(`/reservations/destinations?${params.toString()}`)
     },
     getOne: (id: string) => this.get(`/reservations/${id}`),
     create: (data: any) => this.post('/reservations', data),

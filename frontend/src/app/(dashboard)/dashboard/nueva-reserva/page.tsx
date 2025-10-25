@@ -15,10 +15,12 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Combobox } from '@/components/ui/combobox'
 import { Search, MapPin, Clock, Users as UsersIcon, CheckCircle, Loader2, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
-import { getTodayLocalDateString, formatLocalTime12h } from '@/lib/date-utils'
+import { getTodayLocalDateString, formatLocalTime12h, TIMEZONE } from '@/lib/date-utils'
+import { fromZonedTime } from 'date-fns-tz'
 import { cn } from '@/lib/utils'
 
 interface TripSegment {
@@ -41,9 +43,13 @@ export default function NuevaReservaPage() {
   // Estado de búsqueda
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
+  const [originStopId, setOriginStopId] = useState<string>('')
+  const [destinationStopId, setDestinationStopId] = useState<string>('')
   const [date, setDate] = useState(getTodayLocalDateString())
   const [availableTrips, setAvailableTrips] = useState<TripSegment[]>([])
   const [selectedTrip, setSelectedTrip] = useState<TripSegment | null>(null)
+  const [availableOrigins, setAvailableOrigins] = useState<any[]>([])
+  const [availableDestinations, setAvailableDestinations] = useState<any[]>([])
 
   // Estado del cliente
   const [clientPhone, setClientPhone] = useState('')
@@ -65,14 +71,131 @@ export default function NuevaReservaPage() {
     try {
       const usersResponse = await api.users.getAll()
       const currentUser = usersResponse[0]
+      
+      console.log('👤 Usuario actual:', {
+        email: currentUser?.email,
+        name: `${currentUser?.first_name} ${currentUser?.last_name}`,
+        company_id: currentUser?.company_id
+      })
+      
       if (currentUser?.company_id) {
         setCompanyId(currentUser.company_id)
-        // Cargar viajes principales por defecto
+        console.log('✅ Company ID establecido:', currentUser.company_id)
+        
+        // Limpiar estados anteriores para evitar cache
+        setAvailableOrigins([])
+        setAvailableDestinations([])
+        setOrigin('')
+        setDestination('')
+        
+        // Cargar orígenes disponibles para la fecha de hoy
+        await loadOrigins(currentUser.company_id, date)
+        // Cargar viajes principales por defecto (sin filtros específicos)
         searchTrips(currentUser.company_id)
+      } else {
+        console.error('❌ Usuario sin company_id asignado')
       }
     } catch (error: any) {
       console.error('Error loading initial data:', error)
     }
+  }
+
+  const loadOrigins = async (company: string, selectedDate: string) => {
+    try {
+      // Convertir fecha local a UTC correctamente usando zona horaria de México
+      const startOfDay = fromZonedTime(`${selectedDate}T00:00:00`, TIMEZONE)
+      const endOfDay = fromZonedTime(`${selectedDate}T23:59:59.999`, TIMEZONE)
+      
+      const origins = await api.reservations.getAvailableOrigins(
+        company,
+        startOfDay.toISOString(),
+        endOfDay.toISOString()
+      )
+      
+      setAvailableOrigins(origins || [])
+    } catch (error) {
+      console.error('Error loading origins:', error)
+      setAvailableOrigins([])
+    }
+  }
+
+  const loadDestinations = async (company: string, selectedOriginStopId: string, selectedDate: string) => {
+    try {
+      // Convertir fecha local a UTC correctamente usando zona horaria de México
+      const startOfDay = fromZonedTime(`${selectedDate}T00:00:00`, TIMEZONE)
+      const endOfDay = fromZonedTime(`${selectedDate}T23:59:59.999`, TIMEZONE)
+      
+      const destinations = await api.reservations.getAvailableDestinations(
+        company,
+        selectedOriginStopId,
+        startOfDay.toISOString(),
+        endOfDay.toISOString()
+      )
+      
+      setAvailableDestinations(destinations || [])
+    } catch (error) {
+      console.error('Error loading destinations:', error)
+      setAvailableDestinations([])
+    }
+  }
+
+  const handleDateChange = (newDate: string) => {
+    setDate(newDate)
+    setOrigin('')
+    setOriginStopId('')
+    setDestination('')
+    setDestinationStopId('')
+    setAvailableDestinations([])
+    if (companyId) {
+      loadOrigins(companyId, newDate)
+    }
+  }
+
+  const handleOriginChange = (newOrigin: string) => {
+    setOrigin(newOrigin)
+    
+    // Buscar el ID correspondiente al origen seleccionado
+    const selectedOriginStop = availableOrigins.find(o => o.value === newOrigin)
+    const stopId = selectedOriginStop?.id || ''
+    setOriginStopId(stopId)
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('🎯 ORIGEN SELECCIONADO:')
+    console.log('   origin_stop_id:', stopId)
+    console.log('   value:', newOrigin)
+    console.log('   Todas las opciones disponibles:', availableOrigins.length)
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    
+    setDestination('')
+    setDestinationStopId('')
+    
+    if (stopId && companyId) {
+      loadDestinations(companyId, stopId, date)
+    } else {
+      setAvailableDestinations([])
+    }
+  }
+  
+  const handleDestinationChange = (newDestination: string) => {
+    setDestination(newDestination)
+    
+    // Buscar el ID correspondiente al destino seleccionado
+    const selectedDestStop = availableDestinations.find(d => d.value === newDestination)
+    const stopId = selectedDestStop?.id || ''
+    setDestinationStopId(stopId)
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('🎯 DESTINO SELECCIONADO:')
+    console.log('   destination_stop_id:', stopId)
+    console.log('   value:', newDestination)
+    console.log('   Todas las opciones disponibles:', availableDestinations.length)
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    
+    console.log('OLD LOG - Destino seleccionado:', {
+      value: newDestination,
+      id: selectedDestStop?.id,
+      stop: selectedDestStop
+    })
   }
 
   const searchTrips = async (company?: string) => {
@@ -83,23 +206,63 @@ export default function NuevaReservaPage() {
     try {
       const filters: any = {
         company_id: idToUse,
-        main_trips_only: true,
+        // - Sin filtros (carga inicial): main_trips_only = true (solo viajes principales)
+        // - Con origen/destino: main_trips_only = false (todas las combinaciones)
+        main_trips_only: !originStopId && !destinationStopId,
       }
 
-      if (origin) filters.origin = origin
-      if (destination) filters.destination = destination
+      // Filtrado por IDs de paradas (único método soportado)
+      if (originStopId) {
+        filters.origin_stop_id = originStopId
+      }
+      if (destinationStopId) {
+        filters.destination_stop_id = destinationStopId
+      }
+      
       if (date) {
-        const startOfDay = new Date(date)
-        startOfDay.setHours(0, 0, 0, 0)
-        const endOfDay = new Date(date)
-        endOfDay.setHours(23, 59, 59, 999)
+        // Convertir fecha local a UTC correctamente usando zona horaria de México
+        const startOfDay = fromZonedTime(`${date}T00:00:00`, TIMEZONE)
+        const endOfDay = fromZonedTime(`${date}T23:59:59.999`, TIMEZONE)
         filters.date_from = startOfDay.toISOString()
         filters.date_to = endOfDay.toISOString()
       }
 
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('🔍 BÚSQUEDA DE VIAJES - IDs ENVIADOS AL BACKEND:')
+      console.log('   origin_stop_id:', originStopId || 'NO ENVIADO')
+      console.log('   destination_stop_id:', destinationStopId || 'NO ENVIADO')
+      console.log('   company_id:', idToUse)
+      console.log('   date_from:', filters.date_from)
+      console.log('   date_to:', filters.date_to)
+      console.log('   main_trips_only:', filters.main_trips_only)
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      
       const data = await api.reservations.searchAvailableTrips(filters)
-      setAvailableTrips(data || [])
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('📊 RESPUESTA DEL BACKEND:')
+      console.log('   Viajes encontrados:', data?.length || 0)
+      console.log('   Es array?:', Array.isArray(data))
+      if (data && data.length > 0) {
+        console.log('   Primer viaje:', data[0])
+      }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      
+      // Validar que sea un array
+      const trips = Array.isArray(data) ? data : []
+      console.log('📦 Setting availableTrips to:', trips.length, 'trips')
+      setAvailableTrips(trips)
+      
+      // Log después de setear
+      setTimeout(() => {
+        console.log('🎯 Estado de availableTrips después de setear:', availableTrips.length)
+      }, 100)
+      
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No se encontraron viajes con estos filtros')
+      }
     } catch (error: any) {
+      console.error('❌ Error en búsqueda:', error)
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -168,8 +331,47 @@ export default function NuevaReservaPage() {
     }
   }
 
+  const handleAmountPaidChange = (value: string) => {
+    const numValue = parseFloat(value)
+    const totalAmount = selectedTrip ? selectedTrip.price * seatsCount : 0
+    
+    // Validar que no exceda el total
+    if (numValue > totalAmount) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: `El anticipo no puede ser mayor al total ($${totalAmount.toFixed(2)})`,
+      })
+      return
+    }
+    
+    setAmountPaid(value)
+  }
+
   const handleConfirmReservation = async () => {
     if (!selectedTrip || !companyId) return
+
+    // Validación adicional del anticipo
+    const totalAmount = selectedTrip.price * seatsCount
+    if (paymentType === 'partial') {
+      const parsedAmount = parseFloat(amountPaid) || 0
+      if (parsedAmount <= 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'El anticipo debe ser mayor a 0',
+        })
+        return
+      }
+      if (parsedAmount > totalAmount) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: `El anticipo no puede ser mayor al total ($${totalAmount.toFixed(2)})`,
+        })
+        return
+      }
+    }
 
     setLoading(true)
     try {
@@ -180,7 +382,6 @@ export default function NuevaReservaPage() {
         if (!finalClientId) return
       }
 
-      const totalAmount = selectedTrip.price * seatsCount
       const finalAmountPaid =
         paymentType === 'paid'
           ? totalAmount
@@ -278,31 +479,33 @@ export default function NuevaReservaPage() {
             <h3 className="text-lg font-semibold mb-4">Buscar Viajes Disponibles</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <Label htmlFor="origin">Origen</Label>
-                <Input
-                  id="origin"
-                  placeholder="Ciudad origen"
-                  value={origin}
-                  onChange={(e) => setOrigin(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="destination">Destino</Label>
-                <Input
-                  id="destination"
-                  placeholder="Ciudad destino"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                />
-              </div>
-              <div>
                 <Label htmlFor="date">Fecha</Label>
                 <Input
                   id="date"
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => handleDateChange(e.target.value)}
                   min={getTodayLocalDateString()}
+                />
+              </div>
+              <div>
+                <Label htmlFor="origin">Origen</Label>
+                <Combobox
+                  options={availableOrigins}
+                  value={origin}
+                  onChange={handleOriginChange}
+                  placeholder="Selecciona origen..."
+                  emptyText="No hay orígenes disponibles."
+                />
+              </div>
+              <div>
+                <Label htmlFor="destination">Destino</Label>
+                <Combobox
+                  options={availableDestinations}
+                  value={destination}
+                  onChange={handleDestinationChange}
+                  placeholder="Selecciona destino..."
+                  emptyText={origin ? "No hay destinos disponibles." : "Selecciona un origen primero."}
                 />
               </div>
               <div className="flex items-end">
@@ -521,14 +724,20 @@ export default function NuevaReservaPage() {
                     <div className="font-semibold">Anticipo</div>
                     <div className="text-sm text-muted-foreground">Cliente paga ahora, resto al abordar</div>
                     {paymentType === 'partial' && (
-                      <Input
-                        type="number"
-                        placeholder="Cantidad de anticipo"
-                        value={amountPaid}
-                        onChange={(e) => setAmountPaid(e.target.value)}
-                        className="mt-2"
-                        max={selectedTrip.price * seatsCount}
-                      />
+                      <div className="mt-2">
+                        <Input
+                          type="number"
+                          placeholder="Cantidad de anticipo"
+                          value={amountPaid}
+                          onChange={(e) => handleAmountPaidChange(e.target.value)}
+                          max={selectedTrip.price * seatsCount}
+                          step="0.01"
+                          min="0"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Máximo: ${(selectedTrip.price * seatsCount).toFixed(2)}
+                        </p>
+                      </div>
                     )}
                   </div>
                 </label>
@@ -571,7 +780,14 @@ export default function NuevaReservaPage() {
             <Button variant="outline" onClick={() => setStep('client')} className="flex-1">
               Atrás
             </Button>
-            <Button onClick={handleConfirmReservation} className="flex-1" disabled={loading}>
+            <Button 
+              onClick={handleConfirmReservation} 
+              className="flex-1" 
+              disabled={
+                loading || 
+                (paymentType === 'partial' && (!amountPaid || parseFloat(amountPaid) <= 0 || parseFloat(amountPaid) > (selectedTrip?.price || 0) * seatsCount))
+              }
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Confirmar Reserva
             </Button>

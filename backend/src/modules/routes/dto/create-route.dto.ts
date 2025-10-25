@@ -16,23 +16,25 @@ export class CreateRouteDto {
   name: string;
 
   @ApiProperty({ 
-    description: 'Origen (formato: "Municipio, Estado|Nombre de la parada")',
-    example: 'Acapulco de Juarez, Guerrero|Terminal de autobuses A.U.'
+    description: 'Origen (formato: "Municipio, Estado|Nombre de la parada") - Legacy',
+    example: 'Acapulco de Juarez, Guerrero|Terminal de autobuses A.U.',
+    required: false
   })
   @IsString()
-  @IsNotEmpty()
-  origin: string;
+  @IsOptional()
+  origin?: string;
 
   @ApiProperty({ 
-    description: 'Destino (formato: "Municipio, Estado|Nombre de la parada")',
-    example: 'Ciudad de México, Ciudad de Mexico|Terminal TAPO'
+    description: 'Destino (formato: "Municipio, Estado|Nombre de la parada") - Legacy',
+    example: 'Ciudad de México, Ciudad de Mexico|Terminal TAPO',
+    required: false
   })
   @IsString()
-  @IsNotEmpty()
-  destination: string;
+  @IsOptional()
+  destination?: string;
 
   @ApiProperty({ 
-    description: 'Paradas intermedias (formato: "Municipio, Estado|Nombre de la parada")', 
+    description: 'Paradas intermedias (formato: "Municipio, Estado|Nombre de la parada") - Legacy', 
     type: [String], 
     required: false,
     example: ['Chilpancingo, Guerrero|Central camionera']
@@ -41,6 +43,32 @@ export class CreateRouteDto {
   @IsArray()
   @IsString({ each: true })
   stops?: string[];
+
+  @ApiProperty({ 
+    description: 'ID de la parada de origen (preferido sobre string)',
+    required: false
+  })
+  @IsOptional()
+  @IsUUID()
+  origin_stop_id?: string;
+
+  @ApiProperty({ 
+    description: 'ID de la parada de destino (preferido sobre string)',
+    required: false
+  })
+  @IsOptional()
+  @IsUUID()
+  destination_stop_id?: string;
+
+  @ApiProperty({ 
+    description: 'IDs de paradas intermedias (preferido sobre strings)',
+    type: [String],
+    required: false
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  stop_ids?: string[];
 
   @ApiProperty({ description: 'Distancia en kilómetros', required: false })
   @IsOptional()

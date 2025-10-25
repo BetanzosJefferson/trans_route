@@ -18,6 +18,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
+import { StopsModule } from './modules/stops/stops.module';
 import { SupabaseModule } from './shared/supabase/supabase.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { SupabaseModule } from './shared/supabase/supabase.module';
     InvitationsModule,
     CompaniesModule,
     UsersModule,
+    StopsModule,
     RoutesModule,
     RouteTemplatesModule,
     TripsModule,

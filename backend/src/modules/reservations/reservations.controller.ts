@@ -40,6 +40,27 @@ export class ReservationsController {
     return this.reservationsService.searchAvailableTrips(filters);
   }
 
+  @Get('origins')
+  @ApiOperation({ summary: 'Obtener orígenes disponibles por fecha' })
+  getAvailableOrigins(
+    @Query('company_id') companyId: string,
+    @Query('date_from') dateFrom: string,
+    @Query('date_to') dateTo: string,
+  ) {
+    return this.reservationsService.getAvailableOrigins(companyId, dateFrom, dateTo);
+  }
+
+  @Get('destinations')
+  @ApiOperation({ summary: 'Obtener destinos disponibles por origen y fecha' })
+  getAvailableDestinations(
+    @Query('company_id') companyId: string,
+    @Query('origin_stop_id') originStopId: string,
+    @Query('date_from') dateFrom: string,
+    @Query('date_to') dateTo: string,
+  ) {
+    return this.reservationsService.getAvailableDestinations(companyId, originStopId, dateFrom, dateTo);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Obtener todas las reservaciones' })
   findAll(@Query('company_id') companyId: string, @Query() filters: any) {

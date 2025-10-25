@@ -15,15 +15,15 @@ export class SearchTripsDto {
   @IsOptional()
   company_id?: string;
 
-  @ApiProperty({ description: 'Origen (formato: "Ciudad, Estado|Nombre")', required: false })
-  @IsString()
+  @ApiProperty({ description: 'ID de la parada de origen', required: false })
+  @IsUUID()
   @IsOptional()
-  origin?: string;
+  origin_stop_id?: string;
 
-  @ApiProperty({ description: 'Destino (formato: "Ciudad, Estado|Nombre")', required: false })
-  @IsString()
+  @ApiProperty({ description: 'ID de la parada de destino', required: false })
+  @IsUUID()
   @IsOptional()
-  destination?: string;
+  destination_stop_id?: string;
 
   @ApiProperty({ description: 'Fecha desde (ISO 8601)', required: false })
   @IsDateString()

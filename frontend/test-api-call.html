@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API Calls</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffe6e6; }
+        .success { background: #e6ffe6; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test API Calls - Nueva Reserva</h1>
+    <button onclick="testOrigins()">TEST 1: Cargar Orígenes</button>
+    <button onclick="testBackendHealth()">TEST 2: Backend Health</button>
+    <button onclick="clearCache()">Limpiar Cache</button>
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:3001/api/v1';
+        const COMPANY_ID = '11111111-1111-1111-1111-111111111111';
+        
+        function log(message, isError = false, isSuccess = false) {
+            const div = document.createElement('div');
+            div.className = 'result ' + (isError ? 'error' : isSuccess ? 'success' : '');
+            div.innerHTML = '<strong>' + new Date().toLocaleTimeString() + '</strong>: ' + message;
+            document.getElementById('results').appendChild(div);
+        }
+        
+        async function testBackendHealth() {
+            log('Probando si el backend está corriendo...');
+            try {
+                const response = await fetch(`${API_URL}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    log('✅ Backend está corriendo en puerto 3001', false, true);
+                } else {
+                    log(`⚠️ Backend respondió con status: ${response.status}`);
+                }
+            } catch (error) {
+                log('❌ Error conectando al backend: ' + error.message, true);
+            }
+        }
+        
+        async function testOrigins() {
+            log('Cargando orígenes disponibles...');
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const url = `${API_URL}/reservations/origins?company_id=${COMPANY_ID}&date_from=${today.toISOString()}&date_to=${tomorrow.toISOString()}`;
+            
+            log(`URL: ${url.substring(0, 100)}...`);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    // NO CACHE
+                    cache: 'no-store'
+                });
+                
+                log(`Status: ${response.status} ${response.statusText}`);
+                
+                if (response.status === 401) {
+                    log('⚠️ Endpoint requiere autenticación (normal en producción)');
+                    log('💡 Los datos SÍ están en el backend, verifica el frontend');
+                    return;
+                }
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ ÉXITO: Recibidos ${data.length} orígenes`, false, true);
+                    
+                    if (data.length > 0) {
+                        log('<strong>Orígenes recibidos:</strong>');
+                        data.forEach((item, i) => {
+                            log(`${i + 1}. ${item.label} - ${item.location}`);
+                        });
+                        
+                        if (data.length === 2) {
+                            log('⚠️ PROBLEMA: Solo recibió 2 orígenes (main trips)', true);
+                            log('Debería recibir 6 orígenes (con intermedios)');
+                        } else if (data.length === 6) {
+                            log('✅ CORRECTO: Recibió 6 orígenes (incluye intermedios)', false, true);
+                        }
+                    } else {
+                        log('⚠️ No hay orígenes disponibles');
+                    }
+                } else {
+                    log(`❌ Error: ${response.status}`, true);
+                    const text = await response.text();
+                    log(text);
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message, true);
+                log('Verifica que el backend esté corriendo en puerto 3001');
+            }
+        }
+        
+        function clearCache() {
+            log('Limpiando cache del navegador...');
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => {
+                        caches.delete(name);
+                    });
+                    log('✅ Cache limpiado', false, true);
+                });
+            }
+            log('💡 Ahora presiona Cmd+Shift+R (Mac) o Ctrl+Shift+R (Win) para recargar');
+        }
+        
+        // Auto-test al cargar
+        window.onload = () => {
+            log('🚀 Pruebas iniciadas automáticamente');
+            testBackendHealth();
+            setTimeout(() => testOrigins(), 1000);
+        };
+    </script>
+</body>
+</html>
+

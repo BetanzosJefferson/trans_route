@@ -58,5 +58,11 @@ export class RoutesController {
   remove(@Param('id') id: string) {
     return this.routesService.remove(id);
   }
+
+  @Get('stops/all')
+  @ApiOperation({ summary: 'Obtener todas las paradas únicas de la empresa' })
+  getAllStops(@Query('company_id') companyId: string) {
+    return this.routesService.getAllStops(companyId);
+  }
 }
 
