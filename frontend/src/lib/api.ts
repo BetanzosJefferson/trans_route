@@ -157,15 +157,22 @@ class ApiClient {
   }
 
   reservations = {
-    getAll: (companyId: string, filters?: any) => {
-      const params = new URLSearchParams({ company_id: companyId })
+    // Listado y búsqueda
+    getAll: (filters?: any) => {
+      const params = new URLSearchParams()
       if (filters) {
         Object.keys(filters).forEach((key) => {
-          if (filters[key]) params.append(key, filters[key].toString())
+          if (filters[key] !== undefined && filters[key] !== null) {
+            params.append(key, filters[key].toString())
+          }
         })
       }
       return this.get(`/reservations?${params.toString()}`)
     },
+    getOne: (id: string) => this.get(`/reservations/${id}`),
+    getByTrip: (tripId: string) => this.get(`/reservations/by-trip/${tripId}`),
+    
+    // Búsqueda de viajes disponibles (Nueva Reserva)
     searchAvailableTrips: (filters: any) => {
       const params = new URLSearchParams()
       Object.keys(filters).forEach((key) => {
@@ -183,11 +190,26 @@ class ApiClient {
       const params = new URLSearchParams({ company_id: companyId, origin_stop_id: originStopId, date_from: dateFrom, date_to: dateTo })
       return this.get(`/reservations/destinations?${params.toString()}`)
     },
-    getOne: (id: string) => this.get(`/reservations/${id}`),
+    
+    // CRUD básico
     create: (data: any) => this.post('/reservations', data),
     update: (id: string, data: any) => this.patch(`/reservations/${id}`, data),
-    cancel: (id: string) => this.post(`/reservations/${id}/cancel`, {}),
     delete: (id: string) => this.delete(`/reservations/${id}`),
+    
+    // Gestión de caja
+    getCashBalance: () => this.get('/reservations/cash-balance'),
+    
+    // Acciones sobre reservas
+    cancelWithRefund: (id: string, data: { refundAmount: number; cancellationReason: string; paymentMethod: string }) => 
+      this.post(`/reservations/${id}/cancel`, data),
+    addPayment: (id: string, data: { amount: number; paymentMethod: string }) => 
+      this.post(`/reservations/${id}/add-payment`, data),
+    modifyTrip: (id: string, data: { newTripSegmentId: string }) => 
+      this.post(`/reservations/${id}/modify-trip`, data),
+    checkIn: (id: string, data?: { notes?: string }) => 
+      this.post(`/reservations/${id}/check-in`, data || {}),
+    transfer: (id: string, data: { transferredToCompanyId: string; transferNotes?: string }) => 
+      this.post(`/reservations/${id}/transfer`, data),
   }
 
   clients = {

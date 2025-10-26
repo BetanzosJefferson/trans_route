@@ -3,6 +3,12 @@ import { SupabaseService } from '../../shared/supabase/supabase.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { SearchTripsDto } from './dto/search-trips.dto';
+import { CancelReservationDto } from './dto/cancel-reservation.dto';
+import { AddPaymentDto } from './dto/add-payment.dto';
+import { ModifyTripDto } from './dto/modify-trip.dto';
+import { TransferReservationDto } from './dto/transfer-reservation.dto';
+import { CheckInReservationDto } from './dto/check-in-reservation.dto';
+import { FindAllReservationsDto } from './dto/find-all-reservations.dto';
 
 @Injectable()
 export class ReservationsService {
@@ -260,29 +266,78 @@ export class ReservationsService {
     return destinations;
   }
 
-  async findAll(companyId: string, filters?: any) {
+  /**
+   * Obtiene todas las reservas con filtros avanzados y paginación
+   */
+  async findAll(filters: FindAllReservationsDto) {
     const supabase = this.supabaseService.getServiceClient();
 
+    // Usar vista que calcula amount_paid automáticamente
     let query = supabase
-      .from('reservations')
+      .from('reservations_with_amounts')
       .select(`
         *,
         client:clients(*),
         trip_segment:trip_segments(*, trip:trips(*, route:routes(*))),
-        passengers(*),
-        created_by:users!created_by_user_id(first_name, last_name)
+        created_by:users!created_by_user_id(first_name, last_name),
+        checked_in_by:users!checked_in_by_user_id(first_name, last_name)
       `)
-      .eq('company_id', companyId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
-    if (filters?.status) {
+    // Filtros
+    if (filters.companyId) {
+      query = query.eq('company_id', filters.companyId);
+    }
+
+    if (filters.status) {
       query = query.eq('status', filters.status);
     }
 
-    if (filters?.payment_status) {
-      query = query.eq('payment_status', filters.payment_status);
+    if (filters.paymentStatus) {
+      query = query.eq('payment_status', filters.paymentStatus);
     }
+
+    if (filters.tripId) {
+      // Filtrar por trip_id mediante trip_segments
+      const { data: segments } = await supabase
+        .from('trip_segments')
+        .select('id')
+        .eq('trip_id', filters.tripId);
+      
+      const segmentIds = segments?.map(s => s.id) || [];
+      if (segmentIds.length > 0) {
+        query = query.in('trip_segment_id', segmentIds);
+      } else {
+        return { data: [], total: 0, page: filters.page, limit: filters.limit };
+      }
+    }
+
+    if (filters.isNoShow !== undefined) {
+      query = query.eq('is_no_show', filters.isNoShow);
+    }
+
+    if (filters.checkedIn !== undefined) {
+      if (filters.checkedIn) {
+        query = query.not('checked_in_at', 'is', null);
+      } else {
+        query = query.is('checked_in_at', null);
+      }
+    }
+
+    // Contar total antes de paginar
+    const { count } = await supabase
+      .from('reservations_with_amounts')
+      .select('*', { count: 'exact', head: true })
+      .is('deleted_at', null);
+
+    // Paginación
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    query = query.range(from, to);
 
     const { data, error } = await query;
 
@@ -290,7 +345,13 @@ export class ReservationsService {
       throw new Error(`Error fetching reservations: ${error.message}`);
     }
 
-    return data;
+    return {
+      data,
+      total: count || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count || 0) / limit),
+    };
   }
 
   async findOne(id: string) {
@@ -332,42 +393,247 @@ export class ReservationsService {
     return data;
   }
 
-  async cancel(id: string, userId: string) {
+  /**
+   * Obtiene el saldo en caja del usuario (transacciones sin corte)
+   */
+  async getUserCashBalance(userId: string, companyId: string) {
     const supabase = this.supabaseService.getServiceClient();
 
-    // Get reservation details
-    const { data: reservation } = await supabase
-      .from('reservations')
-      .select('*, trip_segment:trip_segments(*)')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.rpc('get_user_cash_balance', {
+      p_user_id: userId,
+      p_company_id: companyId,
+    });
 
-    if (!reservation) {
-      throw new NotFoundException('Reservación no encontrada');
+    if (error) {
+      throw new Error(`Error obteniendo saldo en caja: ${error.message}`);
     }
 
-    // Update reservation status
-    await supabase
-      .from('reservations')
-      .update({
-        status: 'cancelled',
-        payment_status: 'cancelled',
-        last_updated_by_user_id: userId,
-      })
-      .eq('id', id);
-
-    // Restore available seats
-    await supabase
-      .from('trip_segments')
-      .update({
-        available_seats:
-          reservation.trip_segment.available_seats + reservation.seats_reserved,
-      })
-      .eq('id', reservation.trip_segment_id);
-
-    return { message: 'Reservación cancelada exitosamente' };
+    return { balance: data || 0 };
   }
 
+  /**
+   * Cancela una reserva con o sin reembolso
+   * Usa la función PostgreSQL que valida saldo y maneja asientos
+   */
+  async cancelWithRefund(
+    id: string,
+    cancelDto: CancelReservationDto,
+    userId: string,
+  ) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    const { data, error } = await supabase.rpc('cancel_reservation_with_refund', {
+      p_reservation_id: id,
+      p_user_id: userId,
+      p_refund_amount: cancelDto.refundAmount,
+      p_cancellation_reason: cancelDto.cancellationReason,
+      p_payment_method: cancelDto.paymentMethod,
+    });
+
+    if (error) {
+      throw new BadRequestException(`Error cancelando reserva: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Modifica el viaje de una reserva (cambio de fecha/hora)
+   * Usa la función PostgreSQL que maneja asientos automáticamente
+   */
+  async modifyTrip(id: string, modifyDto: ModifyTripDto, userId: string) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    const { data, error } = await supabase.rpc('modify_reservation_trip', {
+      p_reservation_id: id,
+      p_new_trip_segment_id: modifyDto.newTripSegmentId,
+      p_user_id: userId,
+    });
+
+    if (error) {
+      throw new BadRequestException(`Error modificando viaje: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Agrega un pago a una reserva existente
+   * Soporta pagos mixtos (múltiples transacciones)
+   */
+  async addPayment(
+    id: string,
+    paymentDto: AddPaymentDto,
+    userId: string,
+    companyId: string,
+  ) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    const { data, error } = await supabase.rpc('add_payment_to_reservation', {
+      p_reservation_id: id,
+      p_amount: paymentDto.amount,
+      p_payment_method: paymentDto.paymentMethod,
+      p_user_id: userId,
+      p_company_id: companyId,
+    });
+
+    if (error) {
+      throw new BadRequestException(`Error agregando pago: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Marca una reserva como check-in realizado
+   */
+  async checkIn(id: string, userId: string, dto?: CheckInReservationDto) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .update({
+        checked_in_at: new Date().toISOString(),
+        checked_in_by_user_id: userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new BadRequestException(`Error en check-in: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new NotFoundException('Reserva no encontrada');
+    }
+
+    // Audit log
+    if (dto?.notes) {
+      await supabase.from('audit_logs').insert({
+        table_name: 'reservations',
+        record_id: id,
+        action: 'check_in',
+        changed_by_user_id: userId,
+        company_id: data.company_id,
+        changes: { notes: dto.notes },
+      });
+    }
+
+    return { success: true, data };
+  }
+
+  /**
+   * Transfiere una reserva a otra compañía
+   */
+  async transfer(id: string, transferDto: TransferReservationDto, userId: string) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    // Obtener reserva actual
+    const reservation = await this.findOne(id);
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .update({
+        transferred_to_company_id: transferDto.transferredToCompanyId,
+        transfer_notes: transferDto.transferNotes || null,
+        status: 'cancelled', // La reserva original se cancela
+        last_updated_by_user_id: userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new BadRequestException(`Error transfiriendo reserva: ${error.message}`);
+    }
+
+    // Audit log
+    await supabase.from('audit_logs').insert({
+      table_name: 'reservations',
+      record_id: id,
+      action: 'transfer',
+      changed_by_user_id: userId,
+      company_id: reservation.company_id,
+      changes: {
+        transferred_to: transferDto.transferredToCompanyId,
+        notes: transferDto.transferNotes,
+      },
+    });
+
+    return { success: true, data };
+  }
+
+  /**
+   * Marca una reserva como no-show
+   * Llamado por el cron job después de 5 horas de la salida sin check-in
+   */
+  async markNoShow(id: string) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .update({
+        is_no_show: true,
+        no_show_marked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Error marcando no-show: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Obtiene todas las reservas de un viaje específico
+   * Útil para la vista "Agrupada por Viaje"
+   */
+  async findByTrip(tripId: string, companyId: string) {
+    const supabase = this.supabaseService.getServiceClient();
+
+    // Obtener todos los trip_segments del viaje
+    const { data: segments } = await supabase
+      .from('trip_segments')
+      .select('id')
+      .eq('trip_id', tripId);
+
+    const segmentIds = segments?.map(s => s.id) || [];
+
+    if (segmentIds.length === 0) {
+      return [];
+    }
+
+    // Obtener reservas usando la vista
+    const { data, error } = await supabase
+      .from('reservations_with_amounts')
+      .select(`
+        *,
+        client:clients(*),
+        trip_segment:trip_segments(*),
+        checked_in_by:users!checked_in_by_user_id(first_name, last_name)
+      `)
+      .in('trip_segment_id', segmentIds)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .order('trip_segment_id', { ascending: true });
+
+    if (error) {
+      throw new Error(`Error obteniendo reservas del viaje: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Soft delete de una reserva
+   */
   async remove(id: string) {
     const supabase = this.supabaseService.getServiceClient();
 
@@ -379,7 +645,7 @@ export class ReservationsService {
       .single();
 
     if (error) {
-      throw new Error(`Error deleting reservation: ${error.message}`);
+      throw new Error(`Error eliminando reserva: ${error.message}`);
     }
 
     return { message: 'Reservación eliminada exitosamente' };

@@ -308,10 +308,25 @@ export default function NuevaReservaPage() {
       return null
     }
 
-    const [firstName, ...lastNameParts] = clientName.trim().split(' ')
-    const lastName = lastNameParts.join(' ') || firstName
-
     try {
+      // Primero verificar si el cliente ya existe por teléfono
+      try {
+        const existingClient = await api.clients.getByPhone(clientPhone)
+        if (existingClient) {
+          setClientId(existingClient.id)
+          setClientName(`${existingClient.first_name} ${existingClient.last_name}`)
+          setClientEmail(existingClient.email || '')
+          return existingClient.id
+        }
+      } catch (searchError) {
+        // Cliente no existe, continuar con la creación
+        console.log('Cliente no encontrado, proceder a crear nuevo')
+      }
+
+      // Si no existe, crear uno nuevo
+      const [firstName, ...lastNameParts] = clientName.trim().split(' ')
+      const lastName = lastNameParts.join(' ') || firstName
+
       const data = await api.clients.create({
         first_name: firstName,
         last_name: lastName,
@@ -325,7 +340,7 @@ export default function NuevaReservaPage() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Error al crear cliente',
+        description: error.response?.data?.message || 'Error al crear cliente',
       })
       return null
     }
