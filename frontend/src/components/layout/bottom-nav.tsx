@@ -7,10 +7,10 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Inicio' },
-  { href: '/dashboard/reservations', icon: Users, label: 'Reservas' },
-  { href: '/dashboard/nueva-reserva', icon: PlusCircle, label: '', isMain: true }, // Botón principal centrado
-  { href: '/dashboard/packages', icon: Package, label: 'Paquetes' },
-  { href: '/dashboard/finances', icon: DollarSign, label: 'Finanzas' },
+  { href: '/reservations', icon: Users, label: 'Reservas' },
+  { href: '/new-reservation', icon: PlusCircle, label: '', isMain: true }, // Botón principal centrado
+  { href: '/packages', icon: Package, label: 'Paquetes' },
+  { href: '/finances', icon: DollarSign, label: 'Finanzas' },
 ]
 
 export function BottomNav() {

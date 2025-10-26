@@ -21,18 +21,18 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
-  { href: '/dashboard/invitations', icon: UserPlus, label: 'Invitaciones', superAdminOnly: true },
-  { href: '/dashboard/nueva-reserva', icon: PlusCircle, label: 'Nueva Reserva', priority: true },
-  { href: '/dashboard/reservations', icon: Users, label: 'Reservaciones' },
-  { href: '/dashboard/trips', icon: Bus, label: 'Viajes' },
-  { href: '/dashboard/routes', icon: Route, label: 'Rutas' },
-  { href: '/dashboard/packages', icon: Package, label: 'Paquetería' },
-  { href: '/dashboard/vehicles', icon: Car, label: 'Vehículos' },
-  { href: '/dashboard/finances', icon: DollarSign, label: 'Finanzas' },
-  { href: '/dashboard/transactions', icon: Receipt, label: 'Transacciones' },
-  { href: '/dashboard/reports', icon: PieChart, label: 'Reportes' },
-  { href: '/dashboard/company', icon: Building2, label: 'Empresa' },
-  { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
+  { href: '/invitations', icon: UserPlus, label: 'Invitaciones', superAdminOnly: true },
+  { href: '/new-reservation', icon: PlusCircle, label: 'Nueva Reserva', priority: true },
+  { href: '/reservations', icon: Users, label: 'Reservaciones' },
+  { href: '/trips', icon: Bus, label: 'Viajes' },
+  { href: '/routes', icon: Route, label: 'Rutas' },
+  { href: '/packages', icon: Package, label: 'Paquetería' },
+  { href: '/vehicles', icon: Car, label: 'Vehículos' },
+  { href: '/finances', icon: DollarSign, label: 'Finanzas' },
+  { href: '/transactions', icon: Receipt, label: 'Transacciones' },
+  { href: '/reports', icon: PieChart, label: 'Reportes' },
+  { href: '/company', icon: Building2, label: 'Empresa' },
+  { href: '/settings', icon: Settings, label: 'Configuración' },
 ]
 
 export function Sidebar() {

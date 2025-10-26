@@ -82,11 +82,18 @@ src/
 - `/login` - Inicio de sesión
 - `/register` - Registro
 - `/dashboard` - Dashboard principal
-- `/dashboard/trips` - Gestión de viajes
-- `/dashboard/reservations` - Gestión de reservaciones
-- `/dashboard/packages` - Gestión de paquetería
-- `/dashboard/finances` - Módulo financiero
-- `/dashboard/reports` - Reportes y estadísticas
+- `/new-reservation` - Nueva reserva
+- `/reservations` - Gestión de reservaciones
+- `/trips` - Gestión de viajes
+- `/routes` - Gestión de rutas
+- `/packages` - Gestión de paquetería
+- `/vehicles` - Gestión de vehículos
+- `/finances` - Módulo financiero
+- `/transactions` - Transacciones
+- `/reports` - Reportes y estadísticas
+- `/company` - Configuración de empresa
+- `/settings` - Configuración general
+- `/invitations` - Invitaciones (super admin)
 
 ## 🧩 Componentes UI
 
