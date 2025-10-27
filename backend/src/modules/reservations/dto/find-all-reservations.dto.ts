@@ -1,6 +1,6 @@
 import { IsOptional, IsUUID, IsEnum, IsDateString, IsNumber, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class FindAllReservationsDto {
   @ApiPropertyOptional({
@@ -9,6 +9,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @IsUUID()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   companyId?: string;
 
   @ApiPropertyOptional({
@@ -17,6 +18,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @IsEnum(['pending', 'confirmed', 'cancelled', 'completed'])
+  @Transform(({ value }) => (value === '' ? undefined : value))
   status?: string;
 
   @ApiPropertyOptional({
@@ -25,6 +27,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @IsEnum(['pending', 'paid', 'refunded'])
+  @Transform(({ value }) => (value === '' ? undefined : value))
   paymentStatus?: string;
 
   @ApiPropertyOptional({
@@ -33,6 +36,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @IsDateString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   dateFrom?: string;
 
   @ApiPropertyOptional({
@@ -41,6 +45,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @IsDateString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   dateTo?: string;
 
   @ApiPropertyOptional({
@@ -49,6 +54,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @IsUUID()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   tripId?: string;
 
   @ApiPropertyOptional({
@@ -56,6 +62,7 @@ export class FindAllReservationsDto {
     example: 'Juan',
   })
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   clientSearch?: string;
 
   @ApiPropertyOptional({
@@ -64,6 +71,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @Type(() => Boolean)
+  @Transform(({ value }) => (value === '' ? undefined : value))
   isNoShow?: boolean;
 
   @ApiPropertyOptional({
@@ -72,6 +80,7 @@ export class FindAllReservationsDto {
   })
   @IsOptional()
   @Type(() => Boolean)
+  @Transform(({ value }) => (value === '' ? undefined : value))
   checkedIn?: boolean;
 
   @ApiPropertyOptional({

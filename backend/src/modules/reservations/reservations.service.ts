@@ -272,6 +272,16 @@ export class ReservationsService {
   async findAll(filters: FindAllReservationsDto) {
     const supabase = this.supabaseService.getServiceClient();
 
+    // Defaults
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const status = filters.status || 'confirmed'; // Default: solo reservas confirmadas
+
+    // Fechas por defecto: hoy (si no se especifican)
+    const today = new Date();
+    const startIso = filters.dateFrom || today.toISOString();
+    const endIso = filters.dateTo || new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
     // Usar vista que calcula amount_paid automáticamente
     let query = supabase
       .from('reservations_with_amounts')
@@ -285,17 +295,31 @@ export class ReservationsService {
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
-    // Filtros
+    // Filtros obligatorios
     if (filters.companyId) {
       query = query.eq('company_id', filters.companyId);
     }
 
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
+    // Filtrar por status (default: confirmed)
+    query = query.eq('status', status);
 
     if (filters.paymentStatus) {
       query = query.eq('payment_status', filters.paymentStatus);
+    }
+
+    // Filtrar por rango de fechas a través de trip_segments.departure_time
+    if (startIso || endIso) {
+      const { data: segments } = await supabase
+        .from('trip_segments')
+        .select('id')
+        .gte('departure_time', startIso)
+        .lte('departure_time', endIso);
+
+      const segmentIds = segments?.map(s => s.id) || [];
+      if (segmentIds.length === 0) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
+      query = query.in('trip_segment_id', segmentIds);
     }
 
     if (filters.tripId) {
@@ -304,12 +328,12 @@ export class ReservationsService {
         .from('trip_segments')
         .select('id')
         .eq('trip_id', filters.tripId);
-      
+
       const segmentIds = segments?.map(s => s.id) || [];
       if (segmentIds.length > 0) {
         query = query.in('trip_segment_id', segmentIds);
       } else {
-        return { data: [], total: 0, page: filters.page, limit: filters.limit };
+        return { data: [], total: 0, page, limit, totalPages: 0 };
       }
     }
 
@@ -325,6 +349,22 @@ export class ReservationsService {
       }
     }
 
+    // Filtrar por búsqueda de cliente (nombre, apellido, email)
+    if (filters.clientSearch) {
+      const term = `%${filters.clientSearch}%`;
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('id')
+        .or(`first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term}`)
+        .is('deleted_at', null);
+
+      const clientIds = (clients || []).map(c => c.id);
+      if (clientIds.length === 0) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
+      query = query.in('client_id', clientIds);
+    }
+
     // Contar total antes de paginar
     const { count } = await supabase
       .from('reservations_with_amounts')
@@ -332,8 +372,6 @@ export class ReservationsService {
       .is('deleted_at', null);
 
     // Paginación
-    const page = filters.page || 1;
-    const limit = filters.limit || 20;
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
@@ -514,10 +552,10 @@ export class ReservationsService {
       await supabase.from('audit_logs').insert({
         table_name: 'reservations',
         record_id: id,
-        action: 'check_in',
-        changed_by_user_id: userId,
-        company_id: data.company_id,
-        changes: { notes: dto.notes },
+        action_type: 'check_in',
+        user_id: userId,
+        old_data: {},
+        new_data: { notes: dto.notes },
       });
     }
 
@@ -554,10 +592,10 @@ export class ReservationsService {
     await supabase.from('audit_logs').insert({
       table_name: 'reservations',
       record_id: id,
-      action: 'transfer',
-      changed_by_user_id: userId,
-      company_id: reservation.company_id,
-      changes: {
+      action_type: 'transfer',
+      user_id: userId,
+      old_data: {},
+      new_data: {
         transferred_to: transferDto.transferredToCompanyId,
         notes: transferDto.transferNotes,
       },
@@ -632,23 +670,13 @@ export class ReservationsService {
   }
 
   /**
-   * Soft delete de una reserva
+   * NO IMPLEMENTADO: Las reservas solo se pueden cancelar, no eliminar
    */
   async remove(id: string) {
-    const supabase = this.supabaseService.getServiceClient();
-
-    const { data, error } = await supabase
-      .from('reservations')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Error eliminando reserva: ${error.message}`);
-    }
-
-    return { message: 'Reservación eliminada exitosamente' };
+    throw new BadRequestException(
+      'Las reservaciones no se pueden eliminar directamente. Use la función de cancelación (POST /reservations/:id/cancel) en su lugar. ' +
+      'Esto garantiza que los asientos se liberen correctamente, las transacciones se registren y quede un registro en audit_logs.'
+    );
   }
 }
 

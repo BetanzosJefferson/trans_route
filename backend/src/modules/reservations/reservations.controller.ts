@@ -87,7 +87,14 @@ export class ReservationsController {
 
   @Get()
   @ApiOperation({ summary: 'Obtener todas las reservaciones con filtros y paginación' })
-  findAll(@Query() filters: FindAllReservationsDto) {
+  findAll(
+    @Query() filters: FindAllReservationsDto,
+    @CurrentUser('company_id') userCompanyId: string,
+  ) {
+    // Si no viene companyId en el query, usar el del usuario autenticado
+    if (!filters.companyId && userCompanyId) {
+      filters.companyId = userCompanyId;
+    }
     return this.reservationsService.findAll(filters);
   }
 

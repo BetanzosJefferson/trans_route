@@ -34,7 +34,7 @@ interface ReservationsListViewProps {
   onCancel: (reservation: any) => void
   onModify: (reservation: any) => void
   onTransfer: (reservation: any) => void
-  onDelete: (reservation: any) => void
+  onDelete?: (reservation: any) => void
   onRefresh: () => void
 }
 
@@ -222,13 +222,15 @@ export function ReservationsListView({
                         </DropdownMenuItem>
                       </>
                     )}
-                    <DropdownMenuItem
-                      onClick={() => onDelete(reservation)}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Eliminar
-                    </DropdownMenuItem>
+                    {onDelete && (
+                      <DropdownMenuItem
+                        onClick={() => onDelete(reservation)}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Eliminar
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

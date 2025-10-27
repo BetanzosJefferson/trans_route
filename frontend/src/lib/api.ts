@@ -162,13 +162,16 @@ class ApiClient {
       const params = new URLSearchParams()
       if (filters) {
         Object.keys(filters).forEach((key) => {
-          if (filters[key] !== undefined && filters[key] !== null) {
-            params.append(key, filters[key].toString())
-          }
+          const value = filters[key]
+          // No adjuntar valores vacíos, undefined o null
+          if (value === undefined || value === null) return
+          if (typeof value === 'string' && value.trim() === '') return
+          params.append(key, value.toString())
         })
       }
       return this.get(`/reservations?${params.toString()}`)
     },
+    
     getOne: (id: string) => this.get(`/reservations/${id}`),
     getByTrip: (tripId: string) => this.get(`/reservations/by-trip/${tripId}`),
     

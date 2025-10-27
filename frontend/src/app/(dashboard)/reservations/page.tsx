@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { fromZonedTime } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/date-utils'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -85,11 +87,21 @@ export default function ReservationsPage() {
   const loadReservations = async () => {
     setLoading(true)
     try {
-      const companyId = localStorage.getItem('company_id') || ''
+      // Fecha de hoy en formato local (YYYY-MM-DD)
+      const todayStr = new Date().toISOString().slice(0, 10)
       
-      const queryFilters = {
-        companyId,
+      // Usar fechas del filtro o hoy como default
+      const dateFromLocal = filters.dateFrom || todayStr
+      const dateToLocal = filters.dateTo || todayStr
+      
+      const queryFilters: any = {
+        // NO enviar companyId; el backend lo toma del token del usuario
         ...filters,
+        // Default: status confirmed (reservas confirmadas)
+        status: filters.status || 'confirmed',
+        // Convertir fechas locales a ISO usando zona horaria de CDMX
+        dateFrom: fromZonedTime(`${dateFromLocal}T00:00:00`, TIMEZONE).toISOString(),
+        dateTo: fromZonedTime(`${dateToLocal}T23:59:59.999`, TIMEZONE).toISOString(),
         page: pagination.page,
         limit: pagination.limit,
       }
@@ -163,24 +175,14 @@ export default function ReservationsPage() {
     setShowTransferModal(true)
   }
 
-  const handleDelete = async (reservation: any) => {
-    if (!confirm('¿Estás seguro de eliminar esta reserva?')) return
-
-    try {
-      await api.reservations.delete(reservation.id)
-      toast({
-        title: 'Reserva eliminada',
-        description: 'La reserva fue eliminada exitosamente',
-      })
-      loadReservations()
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'No se pudo eliminar la reserva',
-      })
-    }
-  }
+  // DESHABILITADO: Las reservas no se pueden eliminar, solo cancelar
+  // const handleDelete = async (reservation: any) => {
+  //   toast({
+  //     variant: 'destructive',
+  //     title: 'Acción no permitida',
+  //     description: 'Las reservaciones no se pueden eliminar. Use la función de cancelar.',
+  //   })
+  // }
 
   const handleModalSuccess = () => {
     loadReservations()
@@ -352,7 +354,7 @@ export default function ReservationsPage() {
                 onCancel={handleCancel}
                 onModify={handleModify}
                 onTransfer={handleTransfer}
-                onDelete={handleDelete}
+                onDelete={undefined}
                 onRefresh={loadReservations}
               />
             ) : (
